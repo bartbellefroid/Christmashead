@@ -7,6 +7,8 @@
 // Generation takes longer than many serverless time limits, so the browser starts the
 // prediction and then polls for the result.
 
+import { takeSlot, giveBack, clientIp, LIMIT, WINDOW_MS } from "../../lib/rate-limit.mjs";
+
 const MODEL_URL = "https://api.replicate.com/v1/models/black-forest-labs/flux-2-klein-4b/predictions";
 const PREDICTION_URL = "https://api.replicate.com/v1/predictions/";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
@@ -69,7 +71,7 @@ function buildPrompt(raw) {
   const kinds = Object.keys(subjects);
   const animals = kinds.filter(k => k !== "person");
   const hasPeople = kinds.includes("person");
-  // Small image models read "face" + "goofy eyes" as "human face", so animals get their own wording.
+  // Small image models read "face" + "silly expression" as "human face", so animals get their own wording.
   const heads = [
     hasPeople || !kinds.length ? "every person's face" : "",
     ...animals.map(k => k === "animal"
@@ -80,10 +82,12 @@ function buildPrompt(raw) {
     "Edit this photo into a funny Christmas version.",
     who ? `The photo shows exactly ${who}; keep exactly these, in the same positions and poses.`
         : "Keep every subject exactly as it is in number, species and position.",
-    "Do not add any extra heads, faces, people or animals.",
+    "Do not add any extra heads, faces, people or animals: every body keeps exactly one head, in its original place.",
     who && !hasPeople ? "There are no people in this photo: do not draw any human face or human features anywhere." : "",
     `Distort ${heads} like a reflection in a funhouse mirror: comically stretched tall or squashed wide,`,
-    "with oversized goofy eyes, while staying recognisable.",
+    "The fun comes from the warped head shape and a big cheerful grin, while staying recognisable.",
+    "Keep the eyes natural, exactly like in the original photo: same size, colour and direction of gaze,",
+    "not enlarged, not bulging, no extra white around them, no cartoon eyes.",
     "Each of them wears a red Santa Christmas hat with white fur trim, each hat placed in a different silly way,",
     `for example: ${ideas.join("; ")}.`,
     "Keep the background and the photographic style unchanged.",
@@ -105,38 +109,54 @@ async function replicate(url, init = {}) {
   return data;
 }
 
-async function finish(p) {
-  if (p.status === "failed" || p.status === "canceled") return json({ status: p.status, error: p.error || "Generation failed." });
-  if (p.status !== "succeeded") return json({ id: p.id, status: p.status });
+async function finish(p, extra = {}) {
+  if (p.status === "failed" || p.status === "canceled") return json({ status: p.status, error: p.error || "Generation failed.", ...extra });
+  if (p.status !== "succeeded") return json({ id: p.id, status: p.status, ...extra });
   // The output URL is a short-lived link on another domain; hand the image itself to the browser
   // so it can be shown and downloaded without CORS trouble.
   const url = Array.isArray(p.output) ? p.output[0] : p.output;
   const img = await fetch(url);
   if (!img.ok) return json({ status: "failed", error: "Could not fetch the generated image." });
   const b64 = Buffer.from(await img.arrayBuffer()).toString("base64");
-  return json({ id: p.id, status: "succeeded", image: `data:${img.headers.get("content-type") || "image/jpeg"};base64,${b64}` });
+  return json({ id: p.id, status: "succeeded", image: `data:${img.headers.get("content-type") || "image/jpeg"};base64,${b64}`, ...extra });
 }
 
-async function start(req) {
+async function start(req, context) {
   const { image, subjects } = await req.json().catch(() => ({}));
   if (typeof image !== "string" || !/^data:image\/(jpeg|png|webp);base64,/.test(image)) {
     return json({ error: "Send a JPEG, PNG or WebP image as a data URL." }, 400);
   }
   if (image.length * 0.75 > MAX_IMAGE_BYTES) return json({ error: "Image is too large (max 4 MB)." }, 413);
-  const p = await replicate(MODEL_URL, {
-    method: "POST",
-    headers: { prefer: "wait=5" }, // short wait: often done already, and stays under serverless time limits
-    body: JSON.stringify({
-      input: {
-        prompt: buildPrompt(subjects && typeof subjects === "object" ? subjects : null),
-        images: [image],
-        aspect_ratio: "match_input_image",
-        output_format: "jpg",
-        output_quality: 90,
-      },
-    }),
-  });
-  return finish(p);
+
+  // Abuse protection: LIMIT generations per WINDOW per visitor (by IP address).
+  const ip = clientIp(req, context);
+  const slot = await takeSlot(ip);
+  if (!slot.ok) {
+    return json({
+      error: `You can make ${LIMIT} pictures every ${WINDOW_MS / 3600000} hours.`,
+      limited: true, retryAt: slot.retryAt,
+    }, 429);
+  }
+  let p;
+  try {
+    p = await replicate(MODEL_URL, {
+      method: "POST",
+      headers: { prefer: "wait=5" }, // short wait: often done already, and stays under serverless time limits
+      body: JSON.stringify({
+        input: {
+          prompt: buildPrompt(subjects && typeof subjects === "object" ? subjects : null),
+          images: [image],
+          aspect_ratio: "match_input_image",
+          output_format: "jpg",
+          output_quality: 90,
+        },
+      }),
+    });
+  } catch (err) {
+    await giveBack(ip, slot.stamp).catch(() => {});   // never started, so it doesn't count
+    throw err;
+  }
+  return finish(p, { remaining: slot.remaining });
 }
 
 async function poll(id) {
@@ -154,9 +174,9 @@ async function poll(id) {
   return finish(p);
 }
 
-export default async function handler(req) {
+export default async function handler(req, context) {
   try {
-    if (req.method === "POST") return await start(req);
+    if (req.method === "POST") return await start(req, context);
     if (req.method === "GET") {
       const id = new URL(req.url).searchParams.get("id");
       return id ? await poll(id) : json({ error: "Missing id." }, 400);

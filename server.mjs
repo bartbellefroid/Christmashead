@@ -16,17 +16,23 @@ http.createServer(async (req, res) => {
       headers: req.headers,
       body: req.method === "POST" ? Buffer.concat(chunks) : undefined,
     });
-    const response = await handler(request);
+    const response = await handler(request, { ip: req.socket.remoteAddress });
     res.writeHead(response.status, Object.fromEntries(response.headers));
     res.end(Buffer.from(await response.arrayBuffer()));
     return;
   }
-  const files = { "/": ["index.html", "text/html"], "/index.html": ["index.html", "text/html"], "/engine.js": ["engine.js", "text/javascript"], "/detect-worker.js": ["detect-worker.js", "text/javascript"] };
-  if (files[url.pathname]) {
-    const [name, type] = files[url.pathname];
-    res.writeHead(200, { "content-type": `${type}; charset=utf-8` });
-    res.end(await readFile(new URL(`./${name}`, import.meta.url)));
-    return;
+  // static files: index.html, engine.js, detect-worker.js and assets/*
+  const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".jpg": "image/jpeg", ".png": "image/png", ".webp": "image/webp" };
+  const name = url.pathname === "/" ? "index.html" : decodeURIComponent(url.pathname.slice(1));
+  const ext = name.slice(name.lastIndexOf("."));
+  const allowed = /^(index\.html|engine\.js|detect-worker\.js|assets\/[\w.-]+)$/.test(name);
+  if (allowed && TYPES[ext]) {
+    try {
+      const body = await readFile(new URL(`./${name}`, import.meta.url));
+      res.writeHead(200, { "content-type": TYPES[ext] });
+      res.end(body);
+      return;
+    } catch {}
   }
   res.writeHead(404).end("Not found");
 }).listen(PORT, () => console.log(`Mutsify running at http://localhost:${PORT}`));
