@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Mutsify</title>
-<meta name="description" content="Drop a photo, get Christmas hats on every face — plus a funny AI version.">
+<meta name="description" content="Drop a photo and get a funny Christmas version, with a Santa hat on every head.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Chewy&display=swap" rel="stylesheet">
@@ -37,9 +37,8 @@
   .upload input { display: none; }
   body.has-photo .upload { display: none; }
 
-  .results { display: none; grid-template-columns: 1fr 1fr; gap: 28px; margin-top: 8px; text-align: left; }
+  .results { display: none; max-width: 640px; margin: 8px auto 0; text-align: left; }
   body.has-photo .results { display: grid; }
-  @media (max-width: 720px) { .results { grid-template-columns: 1fr; } }
 
   .card { position: relative; padding: 16px; }
   .card h2 { margin: 0 0 12px; font-size: 1.8rem; display: flex; align-items: center; gap: 10px; }
@@ -48,7 +47,6 @@
   .frame > .layer { position: absolute; inset: 0; width: 100%; height: 100%; }
   #funnyImg { opacity: 0; transform: scale(.85); transition: opacity .5s, transform .6s cubic-bezier(.34,1.56,.64,1); }
   #funnyImg.show { opacity: 1; transform: none; }
-  #muts { touch-action: none; cursor: grab; }
 
   .actions { display: flex; gap: 10px; margin-top: 14px; }
   .btn {
@@ -111,8 +109,7 @@
     border: 7px dashed #fff7ea; outline: 8px solid #b8692f; box-shadow: 0 14px 0 8px #7a3c15, 0 22px 30px rgba(0,0,0,.25);
   }
   [data-design="ginger"] .upload { margin: 14px 0; }
-  [data-design="ginger"] .card:nth-child(1) { transform: rotate(-1deg); }
-  [data-design="ginger"] .card:nth-child(2) { transform: rotate(1deg); }
+  [data-design="ginger"] .card { transform: rotate(-.6deg); }
   [data-design="ginger"] .card h2 { color: #fff7ea; text-shadow: 0 3px 0 #7a3c15; }
   [data-design="ginger"] .frame { border: 5px solid #fff7ea; }
   [data-design="ginger"] .btn {
@@ -144,7 +141,7 @@
       <rect x="6" y="70" width="64" height="18" rx="9" fill="#fff"/>
     </svg>Mutsify
   </h1>
-  <p class="sub">Drop a photo. Get hats. 🎄</p>
+  <p class="sub">Drop a photo. Get a funny Christmas version. 🎄</p>
 
   <label class="upload" id="drop">
     <input type="file" id="file" accept="image/*">
@@ -153,18 +150,6 @@
   </label>
 
   <section class="results">
-    <article class="card">
-      <h2>🎅 Muts</h2>
-      <div class="frame">
-        <canvas id="muts"></canvas>
-        <div class="busy" id="mutsBusy" hidden><div><span>🎅</span><br>Finding faces…</div></div>
-      </div>
-      <div class="actions">
-        <button class="btn" id="mutsAgain" aria-label="New hats">🎲 Again</button>
-        <button class="btn alt" id="mutsSave" aria-label="Download hat version">⬇ Save</button>
-      </div>
-    </article>
-
     <article class="card">
       <h2>🤪 Funny</h2>
       <div class="frame" id="funnyFrame">
@@ -212,14 +197,14 @@
 
 
 <script type="module">
-import { loadDetectors, detectHeads, hatsForHead, keepVisible, drawHat, localBounds, toLocal, setCanvasSize, STYLES, shuffle } from "./engine.js";
+import { loadDetectors, detectHeads } from "./engine.js";
 
 const $ = id => document.getElementById(id);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const rand = (a, b) => a + Math.random() * (b - a);
 const pick = a => a[Math.floor(Math.random() * a.length)];
 
-let photo = null, heads = [], hats = [], detectReady = null;
+let photo = null, heads = [], detectReady = null;
 
 // ---------- face finder in a background thread (falls back to this page if workers fail) ----------
 let worker = null, jobs = 0;
@@ -239,7 +224,6 @@ async function findHeads(src) {
   await loadDetectors();
   return detectHeads(src);
 }
-const muts = $("muts"), mctx = muts.getContext("2d");
 
 function toast(msg) {
   const t = $("toast"); t.textContent = msg; t.classList.add("show");
@@ -257,40 +241,6 @@ for (let i = 0; i < 34; i++) {
   f.style.setProperty("--spin", `${rand(-540, 540)}deg`);
   $("deco").appendChild(f);
 }
-
-// ---------- muts (hat) version ----------
-function renderMuts() {
-  if (!photo) return;
-  mctx.drawImage(photo, 0, 0);
-  hats.forEach(h => drawHat(mctx, h));
-}
-
-function placeHats() {
-  hats = [];
-  const order = shuffle([...STYLES]);
-  heads.forEach((head, i) => hats.push(...keepVisible(hatsForHead(head, order[(i + Math.floor(Math.random() * 3)) % order.length]))));
-  renderMuts();
-}
-
-// drag hats around (no extra UI)
-let drag = null;
-const pointIn = e => { const r = muts.getBoundingClientRect(); return { x: (e.clientX - r.left) * muts.width / r.width, y: (e.clientY - r.top) * muts.height / r.height }; };
-muts.addEventListener("pointerdown", e => {
-  const p = pointIn(e);
-  for (let i = hats.length - 1; i >= 0; i--) {
-    const l = toLocal(hats[i], p.x, p.y), b = localBounds(hats[i]);
-    if (l.x >= b.x0 && l.x <= b.x1 && l.y >= b.y0 && l.y <= b.y1) {
-      const [h] = hats.splice(i, 1); hats.push(h);
-      drag = { h, dx: p.x - h.x, dy: p.y - h.y }; muts.setPointerCapture(e.pointerId); return;
-    }
-  }
-});
-muts.addEventListener("pointermove", e => { if (!drag) return; const p = pointIn(e); drag.h.x = p.x - drag.dx; drag.h.y = p.y - drag.dy; renderMuts(); });
-muts.addEventListener("pointerup", () => { drag = null; });
-muts.addEventListener("pointercancel", () => { drag = null; });
-
-$("mutsAgain").onclick = () => { if (heads.length) placeHats(); else toast("No faces found in this photo 🙈"); };
-$("mutsSave").onclick = () => muts.toBlob(b => saveBlob(b, "mutsify.jpg"), "image/jpeg", 0.92);
 
 function saveBlob(blob, name) {
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; a.click();
@@ -520,23 +470,15 @@ async function loadFile(file) {
   photo.getContext("2d").drawImage(img, 0, 0, photo.width, photo.height);
   URL.revokeObjectURL(url);
 
-  muts.width = photo.width; muts.height = photo.height; setCanvasSize(photo.width, photo.height);
   $("funnyImg").removeAttribute("src");
   $("funnyImg").style.aspectRatio = `${photo.width} / ${photo.height}`;
-  heads = []; hats = []; renderMuts();
+  heads = [];
   document.body.classList.add("has-photo");
   await new Promise(r => requestAnimationFrame(r));
 
-  $("mutsBusy").hidden = false;
-  detectReady = (async () => {
-    try {
-      heads = await findHeads(photo);
-      placeHats();
-      if (!heads.length) toast("No faces found 🙈");
-    } catch (err) {
-      console.error(err); toast("Face finder couldn't load");
-    } finally { $("mutsBusy").hidden = true; }
-  })();
+  // Find out who is in the photo (e.g. "two dogs") so the AI prompt can name them exactly.
+  // If that fails the AI still works, just with a more generic prompt.
+  detectReady = findHeads(photo).then(h => { heads = h; }, err => { console.warn(err); heads = []; });
   makeFunny();
 }
 

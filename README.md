@@ -1,54 +1,35 @@
 # Mutsify 🎅
 
-A single-page website: upload a photo and **Mutsify** puts a Christmas hat on every face it can find — humans, cats, dogs, cows, horses, sheep, birds and more.
+Drop a photo and get a funny Christmas version of it: every person and animal gets a funhouse-mirror
+head (stretched or squashed, big grin, natural eyes) and a Santa hat placed in a silly way. Never the same twice.
 
-Every run is different: each head gets a randomly chosen placement style (jaunty tilt, floppy tail, sliding off, tiny perched hat, ridiculous tower, pulled over one eye, hat-on-a-hat, way-too-big, worn backwards) with random colours, stripes and pom-poms or bells.
+While the AI works (10–30 seconds), a reindeer walks onto your photo and eats it bite by bite, then burps
+and reveals the result with confetti.
 
-## AI funhouse version
+## How it works
 
-Below the hat editor there is a **✨ Make funhouse version** button. It sends the photo to
-[Replicate](https://replicate.com/black-forest-labs/flux-2-klein-4b) (FLUX.2 klein 4B by Black Forest Labs),
-which redraws it with every face stretched like in a funhouse mirror and a silly Santa hat on each head.
+- `index.html` — the page (Gingerbread design, upload, reindeer animation, Again / Save).
+- `detect-worker.js` + `engine.js` — find faces and animals in the browser with MediaPipe, in a Web Worker
+  so the animation never stutters. The result ("one horse", "two people") goes into the AI prompt, because
+  without it the model tends to invent extra (human) faces.
+- `netlify/functions/funhouse.mjs` — server function at `/api/funhouse` that calls Replicate
+  ([FLUX.2 klein 4B](https://replicate.com/black-forest-labs/flux-2-klein-4b)). The Replicate token stays on
+  the server (`REPLICATE_API_TOKEN`).
 
-- The Replicate token never reaches the browser: the page talks to a small server function,
-  `netlify/functions/funhouse.mjs` (path `/api/funhouse`), which reads `REPLICATE_API_TOKEN`.
-- The page tells the function what the detector found (e.g. "one horse", "two people"), so the prompt can
-  say exactly who is in the picture. Without that the model tends to invent extra human faces.
-- The prompt picks three random hat ideas each time, so every run is different.
-- Each click costs a Replicate prediction. Anyone who can reach the deployed page can use it, so keep an
-  eye on your Replicate usage or add a spending limit there.
+Every upload (and every 🎲 Again) is one paid Replicate prediction, and anyone who can open the site can use it,
+so keep an eye on your Replicate usage or set a spending limit there.
 
-### While you wait
+Known limitation: the small model sometimes still adds an extra head or hat (seen on a grazing horse whose head
+is hidden in the grass). 🎲 Again gives a new attempt.
 
-The funny version takes 10–30 seconds. Meanwhile a reindeer walks onto the photo and eats it, bite by bite
-(crumbs in the photo's own colours, speech bubbles, a burp and confetti when the result arrives).
-Face detection runs in a Web Worker (`detect-worker.js`) so the animation never stutters.
-
-### Run locally
+## Run locally
 
 ```sh
 REPLICATE_API_TOKEN=r8_your_token node server.mjs
 # open http://localhost:8787
 ```
 
-Opening `index.html` directly as a file still works for the hat editor, but not for the AI version.
+## Deploy on Netlify
 
-### Deploy on Netlify
-
-Connect the repository to Netlify (the included `netlify.toml` publishes the site and the function) and set the
-environment variable `REPLICATE_API_TOKEN` in the site settings.
-
-## Use it
-
-Choose, drop or paste a photo. You get two pictures: **Muts** (hats drawn in your browser — drag them if one
-lands wrong) and **Funny** (the AI version). Each has 🎲 Again and ⬇ Save.
-
-## How it works
-
-The hat editor runs entirely in the browser; the photo only leaves your device when you click the AI funhouse button.
-
-- Human faces: MediaPipe Face Detector (BlazeFace short-range), also run on overlapping tiles to find smaller faces in group shots.
-- Animals and people seen from behind: MediaPipe Object Detector (EfficientDet-Lite2, COCO classes).
-- Animal heads: first the face model is tried on a crop of the animal; otherwise the head is *estimated* as the most detailed region of the animal's box. That estimate can be wrong (e.g. a grazing horse), which is why every hat can be dragged.
-
-Models and the MediaPipe library are loaded from cdn.jsdelivr.net and storage.googleapis.com (~13 MB on first use).
+Connect the repository (branch `main`); `netlify.toml` publishes the site and the function. Set the environment
+variable `REPLICATE_API_TOKEN` in the site settings.

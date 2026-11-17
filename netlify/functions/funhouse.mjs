@@ -69,7 +69,7 @@ function buildPrompt(raw) {
   const kinds = Object.keys(subjects);
   const animals = kinds.filter(k => k !== "person");
   const hasPeople = kinds.includes("person");
-  // Small image models read "face" + "goofy eyes" as "human face", so animals get their own wording.
+  // Small image models read "face" + "silly expression" as "human face", so animals get their own wording.
   const heads = [
     hasPeople || !kinds.length ? "every person's face" : "",
     ...animals.map(k => k === "animal"
@@ -80,10 +80,12 @@ function buildPrompt(raw) {
     "Edit this photo into a funny Christmas version.",
     who ? `The photo shows exactly ${who}; keep exactly these, in the same positions and poses.`
         : "Keep every subject exactly as it is in number, species and position.",
-    "Do not add any extra heads, faces, people or animals.",
+    "Do not add any extra heads, faces, people or animals: every body keeps exactly one head, in its original place.",
     who && !hasPeople ? "There are no people in this photo: do not draw any human face or human features anywhere." : "",
     `Distort ${heads} like a reflection in a funhouse mirror: comically stretched tall or squashed wide,`,
-    "with oversized goofy eyes, while staying recognisable.",
+    "The fun comes from the warped head shape and a big cheerful grin, while staying recognisable.",
+    "Keep the eyes natural, exactly like in the original photo: same size, colour and direction of gaze,",
+    "not enlarged, not bulging, no extra white around them, no cartoon eyes.",
     "Each of them wears a red Santa Christmas hat with white fur trim, each hat placed in a different silly way,",
     `for example: ${ideas.join("; ")}.`,
     "Keep the background and the photographic style unchanged.",
