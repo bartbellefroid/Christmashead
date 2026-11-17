@@ -261,11 +261,10 @@ async function watermark(src) {
   g.drawImage(img, 0, 0);
 
   const s = Math.min(W, H);
-  // Subtle mark: a small QR on its own little white tile (whole pixels per module, at least 3 px each so
-  // phones can still scan it) and a soft white "Mutsify" next to it. No card behind it.
-  const q = 29 * Math.max(3, Math.round(s * 0.07 / 29));
+  // Subtle mark: a small QR on its own little white tile (whole pixels per module, at least 2 px each) and a soft white "Mutsify" next to it. No card behind it.
+  const q = 29 * Math.max(2, Math.round(s * 0.05 / 29));
   const pad = Math.round(q / 29 * 3), margin = Math.round(s * 0.025);   // pad = 3 modules of quiet zone
-  const size = Math.round(q * 0.24);
+  const size = Math.max(11, Math.round(q * 0.3));
   const font = "Inter, -apple-system, system-ui, sans-serif";
   const x = margin, y = H - margin - q - pad * 2;
 
