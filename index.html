@@ -261,29 +261,28 @@ async function watermark(src) {
   g.drawImage(img, 0, 0);
 
   const s = Math.min(W, H);
-  // QR size: whole pixels per module (the code is 29×29 modules) and at least 3 px each, so phones can scan it
-  const q = 29 * Math.max(3, Math.round(s * 0.1 / 29));
-  const pad = Math.round(q * 0.14), margin = Math.round(s * 0.03);
-  const big = Math.round(q * 0.34), small = Math.round(q * 0.15);
+  // Subtle mark: a small QR on its own little white tile (whole pixels per module, at least 2 px each) and a soft white "Mutsify" next to it. No card behind it.
+  const q = 29 * Math.max(2, Math.round(s * 0.05 / 29));
+  const pad = Math.round(q / 29 * 3), margin = Math.round(s * 0.025);   // pad = 3 modules of quiet zone
+  const size = Math.max(11, Math.round(q * 0.3));
   const font = "Inter, -apple-system, system-ui, sans-serif";
-  g.font = `700 ${big}px ${font}`; const w1 = g.measureText("Mutsify").width;
-  g.font = `500 ${small}px ${font}`; const w2 = g.measureText("mutsify.netlify.app").width;
-  const bw = pad + q + pad * 1.2 + Math.max(w1, w2) + pad * 1.4, bh = q + pad * 2;
-  const x = margin, y = H - margin - bh;
+  const x = margin, y = H - margin - q - pad * 2;
 
   g.save();
-  g.shadowColor = "rgba(0,0,0,.25)"; g.shadowBlur = pad * 1.5; g.shadowOffsetY = pad * .3;
-  g.fillStyle = "rgba(255,255,255,.9)";
-  g.beginPath(); g.roundRect(x, y, bw, bh, pad * 1.3); g.fill();
+  g.globalAlpha = 0.9;
+  g.fillStyle = "#fff";
+  g.beginPath(); g.roundRect(x, y, q + pad * 2, q + pad * 2, pad * 1.5); g.fill();
   g.restore();
   g.imageSmoothingEnabled = false;                      // keep the QR modules crisp
   g.drawImage(qr, x + pad, y + pad, q, q);
   g.imageSmoothingEnabled = true;
-  const tx = x + pad + q + pad * 1.2;
-  g.fillStyle = "#1f3550"; g.textBaseline = "alphabetic";
-  g.font = `700 ${big}px ${font}`; g.fillText("Mutsify", tx, y + pad + q * 0.52);
-  g.fillStyle = "rgba(31,53,80,.72)";
-  g.font = `500 ${small}px ${font}`; g.fillText("mutsify.netlify.app", tx, y + pad + q * 0.52 + small * 1.6);
+
+  g.save();
+  g.font = `600 ${size}px ${font}`; g.textBaseline = "middle";
+  g.shadowColor = "rgba(0,0,0,.45)"; g.shadowBlur = size * 0.4; g.shadowOffsetY = size * 0.05;
+  g.fillStyle = "rgba(255,255,255,.85)";
+  g.fillText("Mutsify", x + q + pad * 2 + size * 0.5, y + (q + pad * 2) / 2);
+  g.restore();
 
   return new Promise(res => c.toBlob(res, "image/jpeg", 0.92));
 }
