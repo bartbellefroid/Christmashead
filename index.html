@@ -7,7 +7,7 @@
 <meta name="description" content="Drop a photo, get Christmas hats on every face — plus a funny AI version.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Chewy&family=Fredoka:wght@500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Chewy&display=swap" rel="stylesheet">
 <style>
   /* ============ shared layout ============ */
   * { box-sizing: border-box; }
@@ -93,80 +93,12 @@
   @keyframes pop { to { transform: translate(-50%, -100%) scale(1); } }
 
   .toast {
-    position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%); z-index: 20;
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 20;
     background: #222; color: #fff; padding: 10px 16px; border-radius: 12px; font-size: 1rem; display: none;
   }
   .toast.show { display: block; }
 
-  /* design picker (temporary, to choose a design) */
-  .picker {
-    position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 30;
-    display: flex; gap: 6px; align-items: center; padding: 6px; border-radius: 999px;
-    background: rgba(255,255,255,.92); box-shadow: 0 6px 24px rgba(0,0,0,.2); font-family: system-ui, sans-serif; font-size: .9rem; color: #222;
-    max-width: calc(100vw - 32px); overflow-x: auto;
-  }
-  .picker b { padding: 0 6px 0 10px; white-space: nowrap; }
-  .picker button { border: 0; border-radius: 999px; padding: 8px 12px; background: #eee; cursor: pointer; font: inherit; white-space: nowrap; }
-  .picker button.on { background: #222; color: #fff; }
-  @media (max-width: 520px) { .picker b { display: none; } .picker button { padding: 8px 10px; } }
-
-  /* ============ design 1: Candy Pop ============ */
-  [data-design="candy"] {
-    --font: "Fredoka", system-ui, sans-serif; --ink: #1d1530;
-    --bg: repeating-linear-gradient(-45deg, #ffe1ee 0 28px, #fff3f8 28px 56px);
-    --bite-bg: repeating-linear-gradient(45deg, #e8203a 0 16px, #fff 16px 32px);
-  }
-  [data-design="candy"] .logo { font-weight: 700; color: #ff2d55; -webkit-text-stroke: 3px #1d1530; text-shadow: 6px 6px 0 #1d1530; }
-  [data-design="candy"] .sub { font-weight: 500; }
-  [data-design="candy"] .upload, [data-design="candy"] .card {
-    background: #fff; border: 4px solid #1d1530; border-radius: 28px; box-shadow: 10px 10px 0 #1d1530;
-  }
-  [data-design="candy"] .upload { background: #fffbd6; font-weight: 700; }
-  [data-design="candy"] .card:nth-child(1) { transform: rotate(-1.2deg); background: #c9f7e4; }
-  [data-design="candy"] .card:nth-child(2) { transform: rotate(1.2deg); background: #d9e6ff; }
-  [data-design="candy"] .card h2 { font-weight: 700; }
-  [data-design="candy"] .frame { border: 3px solid #1d1530; }
-  [data-design="candy"] .btn { border: 3px solid #1d1530; border-radius: 999px; box-shadow: 4px 4px 0 #1d1530; font-weight: 700; background: #ffd93d; color: #1d1530; }
-  [data-design="candy"] .btn.alt { background: #ff8fb8; }
-  [data-design="candy"] .flake { width: 12px; height: 12px; border-radius: 50%; border: 2px solid #1d1530; }
-  [data-design="candy"] .flake:nth-child(4n) { background: #ff2d55; }
-  [data-design="candy"] .flake:nth-child(4n+1) { background: #ffd93d; }
-  [data-design="candy"] .flake:nth-child(4n+2) { background: #3ddc97; }
-  [data-design="candy"] .flake:nth-child(4n+3) { background: #5b8cff; }
-
-  /* ============ design 2: Aurora Party ============ */
-  [data-design="aurora"] {
-    --font: "Baloo 2", system-ui, sans-serif; --ink: #f4f0ff;
-    --bg: #0b0a24;
-    --bite-bg: radial-gradient(circle at 20% 30%, #fff 0 1.5px, transparent 2px) 0 0 / 38px 38px,
-               radial-gradient(circle at 70% 60%, #ffe9a8 0 1.2px, transparent 2px) 0 0 / 52px 52px,
-               linear-gradient(160deg, #1b1250, #0b0a24);
-  }
-  [data-design="aurora"] .deco::before, [data-design="aurora"] .deco::after {
-    content: ""; position: absolute; width: 90vmax; height: 90vmax; border-radius: 50%; filter: blur(90px); opacity: .55;
-    animation: drift 14s ease-in-out infinite alternate;
-  }
-  [data-design="aurora"] .deco::before { background: radial-gradient(#7b2ff7, transparent 65%); left: -30vmax; top: -40vmax; }
-  [data-design="aurora"] .deco::after { background: radial-gradient(#00e5c0, transparent 65%); right: -35vmax; top: -10vmax; animation-delay: -7s; }
-  @keyframes drift { to { transform: translate(12vmax, 16vmax) scale(1.15); } }
-  [data-design="aurora"] .logo {
-    font-weight: 800; background: linear-gradient(90deg, #ff5fd2, #ffd36e, #5ff2ff, #ff5fd2); background-size: 300% 100%;
-    -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 6s linear infinite;
-    filter: drop-shadow(0 0 22px rgba(255, 95, 210, .55));
-  }
-  @keyframes shimmer { to { background-position: 300% 0; } }
-  [data-design="aurora"] .upload, [data-design="aurora"] .card {
-    background: rgba(255,255,255,.08); border: 1.5px solid rgba(255,255,255,.25); border-radius: 28px;
-    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: 0 10px 40px rgba(0,0,0,.35);
-  }
-  [data-design="aurora"] .upload { border-style: dashed; font-weight: 800; }
-  [data-design="aurora"] .card h2 { font-weight: 800; }
-  [data-design="aurora"] .btn { border-radius: 999px; font-weight: 800; color: #1a0b3a; background: linear-gradient(90deg, #ffd36e, #ff8ad8); box-shadow: 0 0 18px rgba(255,138,216,.6); }
-  [data-design="aurora"] .btn.alt { background: linear-gradient(90deg, #5ff2ff, #a78bff); box-shadow: 0 0 18px rgba(95,242,255,.55); }
-  [data-design="aurora"] .flake { width: 6px; height: 6px; border-radius: 50%; background: #fff; box-shadow: 0 0 8px #fff; opacity: .85; }
-  [data-design="aurora"] .flake:nth-child(3n) { width: 3px; height: 3px; }
-
-  /* ============ design 3: Gingerbread ============ */
+  /* ============ Gingerbread design ============ */
   [data-design="ginger"] {
     --font: "Chewy", system-ui, sans-serif; --ink: #4a2511;
     --bg: radial-gradient(circle, #f2cf9e 2px, transparent 2.5px) 0 0 / 26px 26px, #fbe6c4;
@@ -196,12 +128,12 @@
   [data-design="ginger"] .flake:nth-child(4n+3) { background: #fff; }
 
   @media (prefers-reduced-motion: reduce) {
-    .flake, .logo .hat, .upload .icon, [data-design="aurora"] .deco::before, [data-design="aurora"] .deco::after { animation: none !important; }
+    .flake, .logo .hat, .upload .icon { animation: none !important; }
     .flake { display: none; }
   }
 </style>
 </head>
-<body data-design="candy">
+<body data-design="ginger">
 <div class="deco" id="deco"></div>
 
 <main>
@@ -278,12 +210,6 @@
 
 <div class="toast" id="toast"></div>
 
-<nav class="picker" id="picker" aria-label="Choose a design">
-  <b>Pick a design:</b>
-  <button data-d="candy">🍭 Candy Pop</button>
-  <button data-d="aurora">✨ Aurora Party</button>
-  <button data-d="ginger">🍪 Gingerbread</button>
-</nav>
 
 <script type="module">
 import { loadDetectors, detectHeads, hatsForHead, keepVisible, drawHat, localBounds, toLocal, setCanvasSize, STYLES, shuffle } from "./engine.js";
@@ -320,21 +246,7 @@ function toast(msg) {
   clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove("show"), 4500);
 }
 
-// ---------- design picker ----------
-function setDesign(d) {
-  document.body.dataset.design = d;
-  document.querySelectorAll(".picker button").forEach(b => b.classList.toggle("on", b.dataset.d === d));
-  try { localStorage.setItem("mutsify-design", d); } catch {}
-  const u = new URL(location.href); u.searchParams.set("design", d); history.replaceState(null, "", u);
-}
-document.querySelectorAll(".picker button").forEach(b => b.onclick = () => setDesign(b.dataset.d));
-{
-  let d = new URL(location.href).searchParams.get("design");
-  if (!d) try { d = localStorage.getItem("mutsify-design"); } catch {}
-  setDesign(["candy", "aurora", "ginger"].includes(d) ? d : "candy");
-}
-
-// falling decorations (snow / confetti / sprinkles, styled per design)
+// falling sprinkles
 for (let i = 0; i < 34; i++) {
   const f = document.createElement("i");
   f.className = "flake";

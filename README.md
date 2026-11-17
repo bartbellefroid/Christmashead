@@ -43,8 +43,6 @@ environment variable `REPLICATE_API_TOKEN` in the site settings.
 Choose, drop or paste a photo. You get two pictures: **Muts** (hats drawn in your browser — drag them if one
 lands wrong) and **Funny** (the AI version). Each has 🎲 Again and ⬇ Save.
 
-Three designs are built in (Candy Pop, Aurora Party, Gingerbread); pick one with the bar at the bottom or `?design=candy|aurora|ginger`.
-
 ## How it works
 
 The hat editor runs entirely in the browser; the photo only leaves your device when you click the AI funhouse button.
