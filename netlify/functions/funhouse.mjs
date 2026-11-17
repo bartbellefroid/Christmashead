@@ -1,4 +1,4 @@
-// Mutsify AI "funhouse mirror" edit via Replicate (black-forest-labs/flux-2-klein-4b).
+// Mutsify AI edit (funny Santa hats, faces unchanged) via Replicate (black-forest-labs/flux-2-klein-4b).
 // The Replicate token stays on the server: set REPLICATE_API_TOKEN in the hosting environment.
 //
 //   POST /api/funhouse  { image: "data:image/jpeg;base64,..." }  -> { id, status }
@@ -13,15 +13,15 @@ const MODEL_URL = "https://api.replicate.com/v1/models/black-forest-labs/flux-2-
 const PREDICTION_URL = "https://api.replicate.com/v1/predictions/";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 
+// Ways to wear the hat. All of them stay above the eyes, so the face itself is never covered or changed.
 const HAT_IDEAS = [
-  "tilted and sliding down over one eye",
-  "far too big and flopping down over one ear",
-  "comically tiny and perched on the very top",
-  "extremely tall and wobbly like a tower",
-  "worn backwards with the pom-pom dangling behind",
-  "jauntily cocked to one side with a jingle bell instead of a pom-pom",
-  "with a second tiny Santa hat stacked on its tip",
-  "with an absurdly long tail that curls around the head",
+  "tilted far to one side at a cheeky angle",
+  "slightly too big, slipping down to just above the eyebrows",
+  "comically tiny and perched on the very top of the head",
+  "extra tall and floppy, bending over to one side",
+  "worn backwards with the pom-pom dangling behind the head",
+  "cocked to one side with a little jingle bell instead of a pom-pom",
+  "with an extra long tail hanging down behind the head",
 ];
 
 function shuffle(a) {
@@ -64,33 +64,33 @@ function normalise(subjects) {
   return clean;
 }
 
+function totalHeads(subjects) {
+  return Object.values(subjects).reduce((sum, n) => sum + n, 0);
+}
+
 function buildPrompt(raw) {
   const subjects = normalise(raw);
   const ideas = shuffle([...HAT_IDEAS]).slice(0, 3);
   const who = describe(subjects);
+  const n = totalHeads(subjects);
   const kinds = Object.keys(subjects);
-  const animals = kinds.filter(k => k !== "person");
   const hasPeople = kinds.includes("person");
-  // Small image models read "face" + "silly expression" as "human face", so animals get their own wording.
-  const heads = [
-    hasPeople || !kinds.length ? "every person's face" : "",
-    ...animals.map(k => k === "animal"
-      ? "every animal's head (each animal stays exactly the same species and breed as in the photo, with its own eyes, nose and ears)"
-      : `every ${k}'s head (still clearly a ${k} head with ${k} eyes, ${k} nose and ${k} ears)`),
-  ].filter(Boolean).join(" and ");
+  const hasAnimals = kinds.some(k => k !== "person");
   return [
-    "Edit this photo into a funny Christmas version.",
-    who ? `The photo shows exactly ${who}; keep exactly these, in the same positions and poses.`
-        : "Keep every subject exactly as it is in number, species and position.",
-    "Do not add any extra heads, faces, people or animals: every body keeps exactly one head, in its original place.",
-    who && !hasPeople ? "There are no people in this photo: do not draw any human face or human features anywhere." : "",
-    `Distort ${heads} like a reflection in a funhouse mirror: comically stretched tall or squashed wide,`,
-    "The fun comes from the warped head shape and a big cheerful grin, while staying recognisable.",
-    "Keep the eyes natural, exactly like in the original photo: same size, colour and direction of gaze,",
-    "not enlarged, not bulging, no extra white around them, no cartoon eyes.",
-    "Each of them wears a red Santa Christmas hat with white fur trim, each hat placed in a different silly way,",
+    "Add a red Santa Christmas hat with white fur trim and a pom-pom on top of each head in this photo. Change nothing else.",
+    who ? `The photo shows exactly ${who}, so add exactly ${NUMBERS[n] || n} Santa ${n === 1 ? "hat" : "hats"} in total: one hat per head, never more.`
+        : "Exactly one hat per head, never more.",
+    "Only on heads: no hats on backs, tails, bodies, objects or the background, and no second hat on any head.",
+    "Each hat sits on top of the head, above the eyes: it must not cover the eyes or any part of the face.",
+    "Keep every face exactly the same as in the original photo: same face shape, eyes, expression, mouth,",
+    "skin, fur, colours and identity. Do not retouch, stylise, warp or redraw any face.",
+    hasAnimals ? "Animals stay exactly the same animals, with their own unchanged heads." : "",
+    who && !hasPeople ? "There are no people in this photo: do not add any human face or human features." : "",
+    "Do not add any extra heads, faces, people or animals.",
+    "Make it funny only through how each hat is worn, each one differently,",
     `for example: ${ideas.join("; ")}.`,
-    "Keep the background and the photographic style unchanged.",
+    "The hats sit naturally on the heads with matching lighting and shadows.",
+    "Keep the background, the bodies, the clothing and the photographic style unchanged.",
   ].filter(Boolean).join(" ");
 }
 

@@ -1,7 +1,7 @@
 # Mutsify 🎅
 
-Drop a photo and get a funny Christmas version of it: every person and animal gets a funhouse-mirror
-head (stretched or squashed, big grin, natural eyes) and a Santa hat placed in a silly way. Never the same twice.
+Drop a photo and get a Christmas version of it: every person and animal gets exactly one Santa hat, worn in a funny way
+(cheekily tilted, tiny, extra tall and floppy, backwards…), always above the eyes. Faces stay exactly as they are. Never the same twice.
 
 While the AI works (10–30 seconds), a reindeer walks onto your photo and eats it bite by bite, then burps
 and reveals the result with confetti.
@@ -34,8 +34,8 @@ Every upload (and every ↻ Again) is one paid Replicate prediction. To prevent 
   spending limit in your Replicate account is still a good idea.
 - Optional environment variables: `RATE_LIMIT` (default 10), `RATE_LIMIT_HOURS` (default 5), `RATE_LIMIT_SALT`.
 
-Known limitation: the small model sometimes still adds an extra head or hat (seen on a grazing horse whose head
-is hidden in the grass). 🎲 Again gives a new attempt.
+The prompt names how many heads the detector found and asks for exactly that many hats. Image models don't
+always obey; if a picture comes out wrong, ↻ Again gives a new attempt.
 
 ## Run locally
 
