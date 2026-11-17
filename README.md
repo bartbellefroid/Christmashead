@@ -18,6 +18,12 @@ which redraws it with every face stretched like in a funhouse mirror and a silly
 - Each click costs a Replicate prediction. Anyone who can reach the deployed page can use it, so keep an
   eye on your Replicate usage or add a spending limit there.
 
+### While you wait
+
+The funny version takes 10–30 seconds. Meanwhile a reindeer walks onto the photo and eats it, bite by bite
+(crumbs in the photo's own colours, speech bubbles, a burp and confetti when the result arrives).
+Face detection runs in a Web Worker (`detect-worker.js`) so the animation never stutters.
+
 ### Run locally
 
 ```sh
@@ -34,13 +40,10 @@ environment variable `REPLICATE_API_TOKEN` in the site settings.
 
 ## Use it
 
-Open the page (see above), or open `index.html` directly for the hat editor only. Then:
+Choose, drop or paste a photo. You get two pictures: **Muts** (hats drawn in your browser — drag them if one
+lands wrong) and **Funny** (the AI version). Each has 🎲 Again and ⬇ Save.
 
-- Choose, drop or paste a photo.
-- Click **Mutsify!** again for a new arrangement.
-- Drag hats to move them; mouse wheel to resize, Shift + wheel to tilt; or use the sliders, Flip, Restyle and Delete buttons.
-- Double-click / double-tap to add an extra hat.
-- **Download** saves the result as a JPEG.
+Three designs are built in (Candy Pop, Aurora Party, Gingerbread); pick one with the bar at the bottom or `?design=candy|aurora|ginger`.
 
 ## How it works
 

@@ -4,702 +4,546 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Mutsify</title>
-<meta name="description" content="Upload a photo and Mutsify puts a Christmas hat on every face — human or animal.">
+<meta name="description" content="Drop a photo, get Christmas hats on every face — plus a funny AI version.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Chewy&family=Fredoka:wght@500;700&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --bg: #fbf7f2; --card: #ffffff; --ink: #2b1d1a; --muted: #7a6a64;
-    --red: #c8102e; --red-dark: #9c0c23; --green: #1f6f43; --line: #eadfd6;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      --bg: #17110f; --card: #221a17; --ink: #f6ece6; --muted: #b3a29a;
-      --red: #e2334f; --red-dark: #b81f39; --green: #3aa56b; --line: #3a2d28;
-    }
-  }
-  :root[data-theme="dark"] {
-    --bg: #17110f; --card: #221a17; --ink: #f6ece6; --muted: #b3a29a;
-    --red: #e2334f; --red-dark: #b81f39; --green: #3aa56b; --line: #3a2d28;
-  }
+  /* ============ shared layout ============ */
   * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
   body {
-    margin: 0; background: var(--bg); color: var(--ink);
-    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-family: var(--font); color: var(--ink); background: var(--bg);
+    overflow-x: hidden; transition: color .4s;
   }
-  main { max-width: 860px; margin: 0 auto; padding: 24px 16px 48px; }
-  h1 { font-size: 2.4rem; margin: 0; letter-spacing: -0.02em; }
-  h1 span { color: var(--red); }
-  .tagline { margin: 4px 0 20px; color: var(--muted); }
-  .drop {
-    display: block; border: 2px dashed var(--line); border-radius: 14px; background: var(--card);
-    padding: 28px 16px; text-align: center; cursor: pointer; transition: border-color .15s, background .15s;
+  .deco { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 0; }
+  .flake { position: absolute; top: -20px; animation: fall linear infinite; }
+  @keyframes fall { to { transform: translate3d(var(--drift), 110vh, 0) rotate(var(--spin)); } }
+  main { position: relative; z-index: 1; max-width: 1040px; margin: 0 auto; padding: 28px 16px 120px; text-align: center; }
+
+  .logo { position: relative; display: inline-block; margin: 26px 0 4px; font-size: clamp(3.2rem, 13vw, 7rem); line-height: 1; letter-spacing: -0.02em; }
+  .logo .hat { position: absolute; width: .62em; left: -.16em; top: -.42em; transform-origin: 70% 90%; animation: wiggle 2.6s ease-in-out infinite; }
+  @keyframes wiggle { 0%,100% { transform: rotate(-18deg); } 50% { transform: rotate(-6deg) translateY(-3px); } }
+  .sub { margin: 6px 0 26px; font-size: 1.25rem; opacity: .85; }
+
+  .upload {
+    display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+    width: min(420px, 100%); aspect-ratio: 1.6; cursor: pointer; font-size: 1.5rem;
+    transition: transform .2s cubic-bezier(.34,1.56,.64,1);
   }
-  .drop:hover, .drop.over { border-color: var(--red); }
-  .drop strong { color: var(--red); }
-  .drop input { display: none; }
-  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 8px; align-items: center; }
-  button {
-    font: inherit; border: 1px solid var(--line); background: var(--card); color: var(--ink);
-    padding: 8px 14px; border-radius: 999px; cursor: pointer;
+  .upload:hover, .upload.over { transform: scale(1.04) rotate(-1deg); }
+  .upload .icon { font-size: 3.4rem; animation: bob 1.8s ease-in-out infinite; }
+  @keyframes bob { 50% { transform: translateY(-8px) rotate(6deg); } }
+  .upload input { display: none; }
+  body.has-photo .upload { display: none; }
+
+  .results { display: none; grid-template-columns: 1fr 1fr; gap: 28px; margin-top: 8px; text-align: left; }
+  body.has-photo .results { display: grid; }
+  @media (max-width: 720px) { .results { grid-template-columns: 1fr; } }
+
+  .card { position: relative; padding: 16px; }
+  .card h2 { margin: 0 0 12px; font-size: 1.8rem; display: flex; align-items: center; gap: 10px; }
+  .frame { position: relative; border-radius: 16px; background: var(--bite-bg); line-height: 0; }
+  .frame > canvas, .frame > img { display: block; width: 100%; height: auto; border-radius: 16px; }
+  .frame > .layer { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #funnyImg { opacity: 0; transform: scale(.85); transition: opacity .5s, transform .6s cubic-bezier(.34,1.56,.64,1); }
+  #funnyImg.show { opacity: 1; transform: none; }
+  #muts { touch-action: none; cursor: grab; }
+
+  .actions { display: flex; gap: 10px; margin-top: 14px; }
+  .btn {
+    font: inherit; font-size: 1.15rem; cursor: pointer; border: none; padding: 10px 18px;
+    display: inline-flex; align-items: center; gap: 8px;
+    transition: transform .15s cubic-bezier(.34,1.56,.64,1), filter .15s;
   }
-  button:hover:not(:disabled) { border-color: var(--red); }
-  button:disabled { opacity: .45; cursor: default; }
-  button.primary { background: var(--red); border-color: var(--red); color: #fff; font-weight: 600; }
-  button.primary:hover:not(:disabled) { background: var(--red-dark); }
-  #status { min-height: 1.5em; color: var(--muted); margin: 4px 0 12px; }
-  #stage { position: relative; display: none; }
-  #stage.show { display: block; }
-  canvas {
-    display: block; width: 100%; height: auto; border-radius: 12px; background: var(--card);
-    touch-action: none; box-shadow: 0 2px 14px rgba(0,0,0,.08);
+  .btn:hover:not(:disabled) { transform: translateY(-2px) scale(1.05); }
+  .btn:active:not(:disabled) { transform: scale(.95); }
+  .btn:disabled { opacity: .45; cursor: default; }
+
+  .busy {
+    position: absolute; inset: 0; display: grid; place-items: center; line-height: 1.2; text-align: center;
+    font-size: 1.3rem; border-radius: 16px; background: rgba(0,0,0,.35); color: #fff; text-shadow: 0 2px 6px rgba(0,0,0,.5);
   }
-  .editor {
-    display: none; flex-wrap: wrap; gap: 12px 18px; align-items: center; margin-top: 12px;
-    background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px;
+  .busy span { display: inline-block; animation: bob 1s ease-in-out infinite; font-size: 2.4rem; }
+  .busy[hidden] { display: none; }
+
+  .newphoto { margin-top: 30px; display: none; }
+  body.has-photo .newphoto { display: inline-flex; }
+
+  /* reindeer */
+  #reindeer { position: absolute; z-index: 5; pointer-events: none; display: none; filter: drop-shadow(0 6px 6px rgba(0,0,0,.35)); }
+  #reindeer svg { width: 100%; height: 100%; overflow: visible; transition: transform .2s; }
+  #reindeer.left svg { transform: scaleX(-1); }
+  #reindeer .leg { transform-box: fill-box; transform-origin: 50% 0; }
+  #reindeer.walking .leg.a { animation: step .36s ease-in-out infinite alternate; }
+  #reindeer.walking .leg.b { animation: step .36s ease-in-out infinite alternate-reverse; }
+  @keyframes step { from { transform: rotate(-16deg); } to { transform: rotate(16deg); } }
+  #reindeer .jaw { transform-box: view-box; transform-origin: 180px 66px; }
+  #reindeer.chomp .jaw { animation: chomp .26s ease-in-out 2; }
+  #reindeer.chomp .head { animation: headbob .26s ease-in-out 2; transform-box: view-box; transform-origin: 160px 80px; }
+  @keyframes chomp { 50% { transform: rotate(24deg); } }
+  @keyframes headbob { 50% { transform: rotate(7deg); } }
+  #reindeer .nose { animation: glow 1.2s ease-in-out infinite; }
+  @keyframes glow { 50% { filter: drop-shadow(0 0 7px #ff3030) brightness(1.3); } }
+  .bubble {
+    position: absolute; z-index: 6; padding: 6px 12px; border-radius: 16px; background: #fff; color: #222;
+    font-size: 1.05rem; line-height: 1.2; white-space: nowrap; box-shadow: 0 4px 12px rgba(0,0,0,.25);
+    transform: translate(-50%, -100%) scale(0); animation: pop .25s cubic-bezier(.34,1.56,.64,1) forwards;
   }
-  .editor.show { display: flex; }
-  .editor label { display: flex; gap: 8px; align-items: center; font-size: .92rem; }
-  .editor input[type=range] { width: 130px; accent-color: var(--red); }
-  .hint { font-size: .9rem; color: var(--muted); margin-top: 10px; }
-  .ai {
-    display: none; margin-top: 24px; background: var(--card); border: 1px solid var(--line);
-    border-radius: 14px; padding: 16px;
+  @keyframes pop { to { transform: translate(-50%, -100%) scale(1); } }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%); z-index: 20;
+    background: #222; color: #fff; padding: 10px 16px; border-radius: 12px; font-size: 1rem; display: none;
   }
-  .ai.show { display: block; }
-  .ai h2 { font-size: 1.2rem; margin: 0 0 4px; }
-  .ai p { margin: 0 0 12px; color: var(--muted); font-size: .92rem; }
-  .ai .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-  #aiStatus { color: var(--muted); font-size: .92rem; }
-  #aiResult { display: none; width: 100%; height: auto; margin-top: 12px; border-radius: 12px; }
-  #aiResult.show { display: block; }
-  footer { margin-top: 32px; font-size: .85rem; color: var(--muted); }
+  .toast.show { display: block; }
+
+  /* design picker (temporary, to choose a design) */
+  .picker {
+    position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 30;
+    display: flex; gap: 6px; align-items: center; padding: 6px; border-radius: 999px;
+    background: rgba(255,255,255,.92); box-shadow: 0 6px 24px rgba(0,0,0,.2); font-family: system-ui, sans-serif; font-size: .9rem; color: #222;
+    max-width: calc(100vw - 32px); overflow-x: auto;
+  }
+  .picker b { padding: 0 6px 0 10px; white-space: nowrap; }
+  .picker button { border: 0; border-radius: 999px; padding: 8px 12px; background: #eee; cursor: pointer; font: inherit; white-space: nowrap; }
+  .picker button.on { background: #222; color: #fff; }
+  @media (max-width: 520px) { .picker b { display: none; } .picker button { padding: 8px 10px; } }
+
+  /* ============ design 1: Candy Pop ============ */
+  [data-design="candy"] {
+    --font: "Fredoka", system-ui, sans-serif; --ink: #1d1530;
+    --bg: repeating-linear-gradient(-45deg, #ffe1ee 0 28px, #fff3f8 28px 56px);
+    --bite-bg: repeating-linear-gradient(45deg, #e8203a 0 16px, #fff 16px 32px);
+  }
+  [data-design="candy"] .logo { font-weight: 700; color: #ff2d55; -webkit-text-stroke: 3px #1d1530; text-shadow: 6px 6px 0 #1d1530; }
+  [data-design="candy"] .sub { font-weight: 500; }
+  [data-design="candy"] .upload, [data-design="candy"] .card {
+    background: #fff; border: 4px solid #1d1530; border-radius: 28px; box-shadow: 10px 10px 0 #1d1530;
+  }
+  [data-design="candy"] .upload { background: #fffbd6; font-weight: 700; }
+  [data-design="candy"] .card:nth-child(1) { transform: rotate(-1.2deg); background: #c9f7e4; }
+  [data-design="candy"] .card:nth-child(2) { transform: rotate(1.2deg); background: #d9e6ff; }
+  [data-design="candy"] .card h2 { font-weight: 700; }
+  [data-design="candy"] .frame { border: 3px solid #1d1530; }
+  [data-design="candy"] .btn { border: 3px solid #1d1530; border-radius: 999px; box-shadow: 4px 4px 0 #1d1530; font-weight: 700; background: #ffd93d; color: #1d1530; }
+  [data-design="candy"] .btn.alt { background: #ff8fb8; }
+  [data-design="candy"] .flake { width: 12px; height: 12px; border-radius: 50%; border: 2px solid #1d1530; }
+  [data-design="candy"] .flake:nth-child(4n) { background: #ff2d55; }
+  [data-design="candy"] .flake:nth-child(4n+1) { background: #ffd93d; }
+  [data-design="candy"] .flake:nth-child(4n+2) { background: #3ddc97; }
+  [data-design="candy"] .flake:nth-child(4n+3) { background: #5b8cff; }
+
+  /* ============ design 2: Aurora Party ============ */
+  [data-design="aurora"] {
+    --font: "Baloo 2", system-ui, sans-serif; --ink: #f4f0ff;
+    --bg: #0b0a24;
+    --bite-bg: radial-gradient(circle at 20% 30%, #fff 0 1.5px, transparent 2px) 0 0 / 38px 38px,
+               radial-gradient(circle at 70% 60%, #ffe9a8 0 1.2px, transparent 2px) 0 0 / 52px 52px,
+               linear-gradient(160deg, #1b1250, #0b0a24);
+  }
+  [data-design="aurora"] .deco::before, [data-design="aurora"] .deco::after {
+    content: ""; position: absolute; width: 90vmax; height: 90vmax; border-radius: 50%; filter: blur(90px); opacity: .55;
+    animation: drift 14s ease-in-out infinite alternate;
+  }
+  [data-design="aurora"] .deco::before { background: radial-gradient(#7b2ff7, transparent 65%); left: -30vmax; top: -40vmax; }
+  [data-design="aurora"] .deco::after { background: radial-gradient(#00e5c0, transparent 65%); right: -35vmax; top: -10vmax; animation-delay: -7s; }
+  @keyframes drift { to { transform: translate(12vmax, 16vmax) scale(1.15); } }
+  [data-design="aurora"] .logo {
+    font-weight: 800; background: linear-gradient(90deg, #ff5fd2, #ffd36e, #5ff2ff, #ff5fd2); background-size: 300% 100%;
+    -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 6s linear infinite;
+    filter: drop-shadow(0 0 22px rgba(255, 95, 210, .55));
+  }
+  @keyframes shimmer { to { background-position: 300% 0; } }
+  [data-design="aurora"] .upload, [data-design="aurora"] .card {
+    background: rgba(255,255,255,.08); border: 1.5px solid rgba(255,255,255,.25); border-radius: 28px;
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: 0 10px 40px rgba(0,0,0,.35);
+  }
+  [data-design="aurora"] .upload { border-style: dashed; font-weight: 800; }
+  [data-design="aurora"] .card h2 { font-weight: 800; }
+  [data-design="aurora"] .btn { border-radius: 999px; font-weight: 800; color: #1a0b3a; background: linear-gradient(90deg, #ffd36e, #ff8ad8); box-shadow: 0 0 18px rgba(255,138,216,.6); }
+  [data-design="aurora"] .btn.alt { background: linear-gradient(90deg, #5ff2ff, #a78bff); box-shadow: 0 0 18px rgba(95,242,255,.55); }
+  [data-design="aurora"] .flake { width: 6px; height: 6px; border-radius: 50%; background: #fff; box-shadow: 0 0 8px #fff; opacity: .85; }
+  [data-design="aurora"] .flake:nth-child(3n) { width: 3px; height: 3px; }
+
+  /* ============ design 3: Gingerbread ============ */
+  [data-design="ginger"] {
+    --font: "Chewy", system-ui, sans-serif; --ink: #4a2511;
+    --bg: radial-gradient(circle, #f2cf9e 2px, transparent 2.5px) 0 0 / 26px 26px, #fbe6c4;
+    --bite-bg: radial-gradient(circle, #ff5a7a 2px, transparent 2.5px) 0 0 / 18px 18px,
+               radial-gradient(circle, #6ee0a0 2px, transparent 2.5px) 9px 9px / 18px 18px, #5a2d12;
+  }
+  [data-design="ginger"] .logo { color: #a0522d; text-shadow: 0 4px 0 #fff, 0 8px 0 #6b3416, 0 14px 18px rgba(0,0,0,.25); }
+  [data-design="ginger"] .upload, [data-design="ginger"] .card {
+    background: #b8692f; color: #fff7ea; border-radius: 34px;
+    border: 7px dashed #fff7ea; outline: 8px solid #b8692f; box-shadow: 0 14px 0 8px #7a3c15, 0 22px 30px rgba(0,0,0,.25);
+  }
+  [data-design="ginger"] .upload { margin: 14px 0; }
+  [data-design="ginger"] .card:nth-child(1) { transform: rotate(-1deg); }
+  [data-design="ginger"] .card:nth-child(2) { transform: rotate(1deg); }
+  [data-design="ginger"] .card h2 { color: #fff7ea; text-shadow: 0 3px 0 #7a3c15; }
+  [data-design="ginger"] .frame { border: 5px solid #fff7ea; }
+  [data-design="ginger"] .btn {
+    border-radius: 22px 22px 16px 16px; color: #fff; background: #e8344e; text-shadow: 0 2px 0 rgba(0,0,0,.2);
+    box-shadow: inset 0 -6px 0 rgba(0,0,0,.18), inset 0 6px 0 rgba(255,255,255,.35), 0 5px 0 #7a3c15;
+  }
+  [data-design="ginger"] .btn.alt { background: #2fb36b; }
+  [data-design="ginger"] .newphoto { background: #f5b82e; }
+  [data-design="ginger"] .flake { width: 14px; height: 5px; border-radius: 3px; }
+  [data-design="ginger"] .flake:nth-child(4n) { background: #e8344e; }
+  [data-design="ginger"] .flake:nth-child(4n+1) { background: #2fb36b; }
+  [data-design="ginger"] .flake:nth-child(4n+2) { background: #f5b82e; }
+  [data-design="ginger"] .flake:nth-child(4n+3) { background: #fff; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .flake, .logo .hat, .upload .icon, [data-design="aurora"] .deco::before, [data-design="aurora"] .deco::after { animation: none !important; }
+    .flake { display: none; }
+  }
 </style>
 </head>
-<body>
-<main>
-  <h1>Mutsify <span>🎅</span></h1>
-  <p class="tagline">Upload a photo. Every face — human, cat, dog, cow or horse — gets a Christmas hat. Never the same way twice.</p>
+<body data-design="candy">
+<div class="deco" id="deco"></div>
 
-  <label class="drop" id="drop">
+<main>
+  <h1 class="logo">
+    <svg class="hat" viewBox="0 0 100 100" aria-hidden="true">
+      <path d="M14 78 Q30 20 70 12 Q88 10 92 30 Q80 22 70 30 Q60 50 62 78 Z" fill="#e8203a"/>
+      <circle cx="92" cy="32" r="9" fill="#fff"/>
+      <rect x="6" y="70" width="64" height="18" rx="9" fill="#fff"/>
+    </svg>Mutsify
+  </h1>
+  <p class="sub">Drop a photo. Get hats. 🎄</p>
+
+  <label class="upload" id="drop">
     <input type="file" id="file" accept="image/*">
-    <div><strong>Choose a photo</strong> or drop it here</div>
-    <div style="font-size:.85rem;color:var(--muted)">You can also paste an image (Ctrl/⌘+V)</div>
+    <span class="icon">📸</span>
+    <span>Choose a photo</span>
   </label>
 
-  <div class="toolbar">
-    <button class="primary" id="mutsify" disabled>🎄 Mutsify!</button>
-    <button id="download" disabled>⬇ Download</button>
-  </div>
-  <div id="status" aria-live="polite"></div>
+  <section class="results">
+    <article class="card">
+      <h2>🎅 Muts</h2>
+      <div class="frame">
+        <canvas id="muts"></canvas>
+        <div class="busy" id="mutsBusy" hidden><div><span>🎅</span><br>Finding faces…</div></div>
+      </div>
+      <div class="actions">
+        <button class="btn" id="mutsAgain" aria-label="New hats">🎲 Again</button>
+        <button class="btn alt" id="mutsSave" aria-label="Download hat version">⬇ Save</button>
+      </div>
+    </article>
 
-  <div id="stage">
-    <canvas id="canvas"></canvas>
-    <div class="editor" id="editor">
-      <strong style="font-size:.92rem">Selected hat</strong>
-      <label>Size <input type="range" id="size" min="20" max="300" value="100"></label>
-      <label>Tilt <input type="range" id="tilt" min="-180" max="180" value="0"></label>
-      <button id="flip">↔ Flip</button>
-      <button id="reroll">🎲 Restyle</button>
-      <button id="delete">🗑 Delete</button>
-    </div>
-    <p class="hint">Click Mutsify! again for a new arrangement. Drag a hat to move it, use the mouse wheel to resize (Shift + wheel to tilt), and double-click or double-tap anywhere to add another hat.</p>
-  </div>
-
-  <section class="ai" id="ai">
-    <h2>✨ AI funhouse version</h2>
-    <p>Let an AI image model redraw your photo: every face stretched and squashed like in a funhouse mirror, each with its own silly Santa hat. Takes about 10–30 seconds. Every try is different.</p>
-    <div class="row">
-      <button class="primary" id="aiGo">✨ Make funhouse version</button>
-      <button id="aiDownload" disabled>⬇ Download AI image</button>
-      <span id="aiStatus" aria-live="polite"></span>
-    </div>
-    <img id="aiResult" alt="AI funhouse version of your photo">
+    <article class="card">
+      <h2>🤪 Funny</h2>
+      <div class="frame" id="funnyFrame">
+        <img id="funnyImg" alt="Funny AI version of your photo">
+        <canvas id="eat" class="layer"></canvas>
+        <canvas id="fx" class="layer"></canvas>
+        <div id="reindeer" aria-hidden="true">
+          <svg viewBox="0 -12 220 182">
+            <g class="leg a"><rect x="52" y="112" width="12" height="46" rx="6" fill="#6d3f1d"/><rect x="51" y="150" width="14" height="9" rx="3" fill="#2b1a0e"/></g>
+            <g class="leg b"><rect x="72" y="114" width="12" height="44" rx="6" fill="#8a5428"/><rect x="71" y="150" width="14" height="9" rx="3" fill="#2b1a0e"/></g>
+            <g class="leg b"><rect x="112" y="114" width="12" height="44" rx="6" fill="#6d3f1d"/><rect x="111" y="150" width="14" height="9" rx="3" fill="#2b1a0e"/></g>
+            <g class="leg a"><rect x="132" y="112" width="12" height="46" rx="6" fill="#8a5428"/><rect x="131" y="150" width="14" height="9" rx="3" fill="#2b1a0e"/></g>
+            <circle cx="38" cy="86" r="11" fill="#f3e3c8"/>
+            <ellipse cx="95" cy="98" rx="60" ry="34" fill="#9a5f2c"/>
+            <ellipse cx="98" cy="112" rx="42" ry="15" fill="#c48a52"/>
+            <path d="M128 92 Q146 66 156 46 L180 54 Q170 86 152 110 Z" fill="#9a5f2c"/>
+            <g class="head">
+              <path d="M160 30 Q150 10 136 2 M150 17 Q160 8 157 -2 M176 28 Q182 8 198 0 M184 14 Q176 5 178 -5" stroke="#e2bd85" stroke-width="6" stroke-linecap="round" fill="none"/>
+              <ellipse cx="150" cy="38" rx="11" ry="5" transform="rotate(-32 150 38)" fill="#7a4520"/>
+              <ellipse cx="170" cy="48" rx="25" ry="21" fill="#9a5f2c"/>
+              <ellipse cx="192" cy="58" rx="18" ry="13" fill="#c48a52"/>
+              <path class="jaw" d="M176 64 Q194 82 207 66 Q194 72 178 64 Z" fill="#5a3216"/>
+              <circle class="nose" cx="207" cy="54" r="8.5" fill="#ff2a2a"/>
+              <circle cx="204.5" cy="51.5" r="2.4" fill="#fff" opacity=".7"/>
+              <circle cx="172" cy="42" r="4.6" fill="#1d120a"/>
+              <circle cx="173.6" cy="40.4" r="1.6" fill="#fff"/>
+            </g>
+            <path d="M140 76 Q156 88 174 76 L178 88 Q156 102 136 88 Z" fill="#e8203a"/>
+            <path d="M146 82 L150 94 M158 84 L160 97 M168 81 L171 93" stroke="#fff" stroke-width="3"/>
+            <path d="M142 86 L136 112 L148 112 L152 90 Z" fill="#e8203a"/>
+          </svg>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn" id="funnyAgain" aria-label="Make another funny version" disabled>🎲 Again</button>
+        <button class="btn alt" id="funnySave" aria-label="Download funny version" disabled>⬇ Save</button>
+      </div>
+    </article>
   </section>
 
-  <footer>The hat editor runs entirely in your browser. Face and animal detection by Google MediaPipe; animal heads are estimated from the animal's outline, so drag a hat if it lands on a tail. Only the AI funhouse version sends your photo to a server: it goes to Replicate (model FLUX.2 klein by Black Forest Labs) when you click its button.</footer>
+  <button class="btn newphoto" id="newPhoto">📸 New photo</button>
 </main>
 
+<div class="toast" id="toast"></div>
+
+<nav class="picker" id="picker" aria-label="Choose a design">
+  <b>Pick a design:</b>
+  <button data-d="candy">🍭 Candy Pop</button>
+  <button data-d="aurora">✨ Aurora Party</button>
+  <button data-d="ginger">🍪 Gingerbread</button>
+</nav>
+
 <script type="module">
-const TV = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
-const FACE_MODEL = "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite";
-const OBJ_MODEL = "https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite2/float16/1/efficientdet_lite2.tflite";
-const ANIMALS = new Set(["bird","cat","dog","horse","sheep","cow","elephant","bear","zebra","giraffe","teddy bear"]);
-const MAX_SIDE = 1800;
+import { loadDetectors, detectHeads, hatsForHead, keepVisible, drawHat, localBounds, toLocal, setCanvasSize, STYLES, shuffle } from "./engine.js";
 
 const $ = id => document.getElementById(id);
-const canvas = $("canvas"), ctx = canvas.getContext("2d");
-const status = msg => { $("status").textContent = msg; };
-
-let photo = null;          // canvas holding the (downscaled) photo
-let heads = [];            // detected heads
-let hats = [];             // placed hats
-let selected = -1;
-let detectors = null;
-
-// ---------- random helpers ----------
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 const rand = (a, b) => a + Math.random() * (b - a);
-const pick = arr => arr[Math.floor(Math.random() * arr.length)];
-const sign = () => (Math.random() < 0.5 ? -1 : 1);
-const deg = d => d * Math.PI / 180;
-function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
-function seeded(seed) { return () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; }; }
+const pick = a => a[Math.floor(Math.random() * a.length)];
 
-// ---------- models ----------
-async function loadDetectors() {
-  if (detectors) return detectors;
-  status("Waking up the hat elves… (first time downloads ~13 MB of models)");
-  const { FilesetResolver, FaceDetector, ObjectDetector } = await import(`${TV}/vision_bundle.mjs`);
-  const fileset = await FilesetResolver.forVisionTasks(`${TV}/wasm`);
-  const make = async (delegate) => Promise.all([
-    FaceDetector.createFromOptions(fileset, {
-      baseOptions: { modelAssetPath: FACE_MODEL, delegate }, runningMode: "IMAGE", minDetectionConfidence: 0.5,
-    }),
-    ObjectDetector.createFromOptions(fileset, {
-      baseOptions: { modelAssetPath: OBJ_MODEL, delegate }, runningMode: "IMAGE", scoreThreshold: 0.3, maxResults: 25,
-    }),
-  ]);
-  let face, obj;
-  try { [face, obj] = await make("GPU"); } catch (e) { [face, obj] = await make("CPU"); }
-  detectors = { face, obj };
-  return detectors;
-}
+let photo = null, heads = [], hats = [], detectReady = null;
 
-// ---------- detection ----------
-function iou(a, b) {
-  const x1 = Math.max(a.x, b.x), y1 = Math.max(a.y, b.y);
-  const x2 = Math.min(a.x + a.w, b.x + b.w), y2 = Math.min(a.y + a.h, b.y + b.h);
-  const inter = Math.max(0, x2 - x1) * Math.max(0, y2 - y1);
-  return inter / (a.w * a.h + b.w * b.h - inter);
-}
-const centerIn = (a, b) => {
-  const cx = a.x + a.w / 2, cy = a.y + a.h / 2;
-  return cx > b.x && cx < b.x + b.w && cy > b.y && cy < b.y + b.h;
-};
+// ---------- face finder in a background thread (falls back to this page if workers fail) ----------
+let worker = null, jobs = 0;
+const pending = new Map();
+try {
+  worker = new Worker(new URL("./detect-worker.js", import.meta.url), { type: "module" });
+  worker.onmessage = ({ data }) => { const p = pending.get(data.id); pending.delete(data.id); data.ok ? p?.res(data) : p?.rej(new Error(data.error)); };
+  worker.onerror = () => { worker = null; pending.forEach(p => p.rej(new Error("worker failed"))); pending.clear(); };
+} catch { worker = null; }
+const ask = msg => new Promise((res, rej) => { const id = ++jobs; pending.set(id, { res, rej }); worker.postMessage({ ...msg, id }, msg.bitmap ? [msg.bitmap] : []); });
 
-function detectFaces(src) {
-  // The short-range face model works best on close-ups, so also scan overlapping tiles
-  // to find smaller faces in group photos.
-  const W = src.width, H = src.height, found = [];
-  const tile = document.createElement("canvas"), tctx = tile.getContext("2d");
-  for (const n of [1, 2, 3]) {
-    if (n > 1 && Math.min(W, H) / n < 160) break;
-    const tw = Math.min(W, Math.round(W / n * 1.35)), th = Math.min(H, Math.round(H / n * 1.35));
-    const stepsX = n === 1 ? [0] : [...Array(n)].map((_, i) => Math.round(i * (W - tw) / (n - 1)));
-    const stepsY = n === 1 ? [0] : [...Array(n)].map((_, i) => Math.round(i * (H - th) / (n - 1)));
-    for (const ox of stepsX) for (const oy of stepsY) {
-      tile.width = tw; tile.height = th;
-      tctx.drawImage(src, ox, oy, tw, th, 0, 0, tw, th);
-      const res = detectors.face.detect(tile);
-      for (const d of res.detections) {
-        const score = d.categories[0]?.score ?? 0;
-        if (score < (n > 1 ? 0.7 : 0.6)) continue;
-        const b = d.boundingBox;
-        const kp = (d.keypoints || []).map(p => ({ x: ox + p.x * tw, y: oy + p.y * th }));
-        if (location.hash === "#debug") console.debug("face", n, score.toFixed(2), Math.round(ox + b.originX), Math.round(oy + b.originY));
-        found.push({ x: ox + b.originX, y: oy + b.originY, w: b.width, h: b.height, score, kp });
-      }
-    }
+async function findHeads(src) {
+  if (worker) {
+    try { return (await ask({ type: "detect", bitmap: await createImageBitmap(src) })).heads; }
+    catch (err) { console.warn("worker detection failed, using the page instead", err); worker = null; }
   }
-  // non-maximum suppression
-  found.sort((a, b) => b.score - a.score);
-  const keep = [];
-  for (const f of found) if (!keep.some(k => iou(k, f) > 0.25 || centerIn(f, k))) keep.push(f);
-  return keep;
+  await loadDetectors();
+  return detectHeads(src);
+}
+const muts = $("muts"), mctx = muts.getContext("2d");
+
+function toast(msg) {
+  const t = $("toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove("show"), 4500);
 }
 
-function detailMap(src, box, G) {
-  // Gradient energy of the animal's box on a small grid. Eyes, nose and ears carry a lot
-  // of fine detail compared with fur or grass, so the head is usually the "busiest" spot.
-  const gw = box.w >= box.h ? G : Math.max(8, Math.round(G * box.w / box.h));
-  const gh = box.w >= box.h ? Math.max(8, Math.round(G * box.h / box.w)) : G;
-  const s = document.createElement("canvas"); s.width = gw + 1; s.height = gh + 1;
-  const c = s.getContext("2d", { willReadFrequently: true });
-  c.drawImage(src, box.x, box.y, box.w, box.h, 0, 0, gw + 1, gh + 1);
-  const px = c.getImageData(0, 0, gw + 1, gh + 1).data, lum = i => px[i] * .3 + px[i + 1] * .59 + px[i + 2] * .11;
-  const E = new Float32Array(gw * gh);
-  for (let y = 0; y < gh; y++) for (let x = 0; x < gw; x++) {
-    const i = (y * (gw + 1) + x) * 4, l = lum(i);
-    E[y * gw + x] = Math.abs(l - lum(i + 4)) + Math.abs(l - lum(i + (gw + 1) * 4));
-  }
-  return { E, gw, gh };
+// ---------- design picker ----------
+function setDesign(d) {
+  document.body.dataset.design = d;
+  document.querySelectorAll(".picker button").forEach(b => b.classList.toggle("on", b.dataset.d === d));
+  try { localStorage.setItem("mutsify-design", d); } catch {}
+  const u = new URL(location.href); u.searchParams.set("design", d); history.replaceState(null, "", u);
+}
+document.querySelectorAll(".picker button").forEach(b => b.onclick = () => setDesign(b.dataset.d));
+{
+  let d = new URL(location.href).searchParams.get("design");
+  if (!d) try { d = localStorage.getItem("mutsify-design"); } catch {}
+  setDesign(["candy", "aurora", "ginger"].includes(d) ? d : "candy");
 }
 
-function findHeadWindow(src, box, frac, endsOnly = false) {
-  // Slide a square window (size = frac of the box's short side) and keep the busiest one,
-  // with a mild preference for windows near the top. Returns the window in image px.
-  const { E, gw, gh } = detailMap(src, box, 48);
-  const k = Math.max(3, Math.round(Math.min(gw, gh) * frac));
-  const I = new Float32Array((gw + 1) * (gh + 1));
-  for (let y = 0; y < gh; y++) for (let x = 0; x < gw; x++)
-    I[(y + 1) * (gw + 1) + x + 1] = E[y * gw + x] + I[y * (gw + 1) + x + 1] + I[(y + 1) * (gw + 1) + x] - I[y * (gw + 1) + x];
-  let best = -1, bx = 0, by = 0;
-  for (let y = 0; y + k <= gh; y++) for (let x = 0; x + k <= gw; x++) {
-    if (endsOnly && x > 1 && x + k < gw - 1) continue;
-    const sum = I[(y + k) * (gw + 1) + x + k] - I[y * (gw + 1) + x + k] - I[(y + k) * (gw + 1) + x] + I[y * (gw + 1) + x];
-    const score = sum * (1 - (endsOnly ? 0.2 : 0.45) * y / Math.max(1, gh - k));
-    if (score > best) { best = score; bx = x; by = y; }
-  }
-  const sx = box.w / gw, sy = box.h / gh;
-  return { x: box.x + bx * sx, y: box.y + by * sy, w: k * sx, h: k * sy };
+// falling decorations (snow / confetti / sprinkles, styled per design)
+for (let i = 0; i < 34; i++) {
+  const f = document.createElement("i");
+  f.className = "flake";
+  f.style.left = `${rand(0, 100)}vw`;
+  f.style.animationDuration = `${rand(9, 20)}s`;
+  f.style.animationDelay = `${-rand(0, 20)}s`;
+  f.style.setProperty("--drift", `${rand(-12, 12)}vw`);
+  f.style.setProperty("--spin", `${rand(-540, 540)}deg`);
+  $("deco").appendChild(f);
 }
 
-function detectHeads(src) {
-  const faces = detectFaces(src);
-  const objs = detectors.obj.detect(src).detections.map(d => ({
-    label: d.categories[0].categoryName, score: d.categories[0].score,
-    x: d.boundingBox.originX, y: d.boundingBox.originY, w: d.boundingBox.width, h: d.boundingBox.height,
-  }));
-  const people = objs.filter(o => o.label === "person" && o.score > 0.45);
-  let animals = objs.filter(o => ANIMALS.has(o.label));
-  animals.sort((a, b) => b.score - a.score);
-  animals = animals.filter((a, i) => !animals.slice(0, i).some(b => iou(a, b) > 0.55));
-
-  const out = [];
-  for (const f of faces) {
-    // A "face" low down inside a person's box (a knee, a shirt logo…) is a false alarm.
-    const fcx = f.x + f.w / 2, fcy = f.y + f.h / 2;
-    const inPerson = people.filter(p => fcx > p.x && fcx < p.x + p.w && fcy > p.y && fcy < p.y + p.h);
-    if (inPerson.length && inPerson.every(p => fcy > p.y + Math.max(p.h * 0.4, p.w * 0.6))) continue;
-    let roll = 0;
-    if (f.kp.length >= 2) {
-      let [a, b] = [f.kp[0], f.kp[1]];
-      if (a.x > b.x) [a, b] = [b, a];
-      roll = Math.atan2(b.y - a.y, b.x - a.x);
-    }
-    out.push({ kind: "face", cx: f.x + f.w / 2, cy: f.y + f.h / 2, fw: f.w, fh: f.h, roll, box: f });
-  }
-  for (const a of animals) {
-    // If the face detector already found this animal's face, it is better than our guess.
-    if (out.some(h => centerIn(h.box, a) && !people.some(p => centerIn(h.box, p)))) continue;
-    out.push(animalHead(src, a));
-  }
-  for (const p of people) {
-    // People seen from behind / too small: hat on top of the person box.
-    if (out.some(h => centerIn(h.box, p) || iou(h.box, p) > 0.3)) continue;
-    const hw = Math.min(p.w * 0.38, p.h * 0.28);
-    if (hw < 12) continue;
-    const box = { x: p.x + p.w / 2 - hw / 2, y: p.y, w: hw, h: hw * 1.2 };
-    out.push({ kind: "guess", cx: box.x + hw / 2, cy: p.y + hw * 0.95, fw: hw, fh: hw * 1.1, roll: 0, box });
-  }
-  return out;
+// ---------- muts (hat) version ----------
+function renderMuts() {
+  if (!photo) return;
+  mctx.drawImage(photo, 0, 0);
+  hats.forEach(h => drawHat(mctx, h));
 }
 
-function animalFace(src, a) {
-  // The human face model often still finds dog/cat/cow faces when it gets a close, square crop.
-  const side = Math.max(a.w, a.h), c = document.createElement("canvas");
-  c.width = c.height = 256;
-  const g = c.getContext("2d"), k = 256 / side;
-  g.fillStyle = "#808080"; g.fillRect(0, 0, 256, 256);
-  const ox = (side - a.w) / 2, oy = (side - a.h) / 2;
-  g.drawImage(src, a.x, a.y, a.w, a.h, ox * k, oy * k, a.w * k, a.h * k);
-  let best = null;
-  for (const d of detectors.face.detect(c).detections) {
-    const score = d.categories[0]?.score ?? 0, b = d.boundingBox;
-    if (score < 0.5 || b.width < 256 * 0.12 || (best && best.score > score)) continue;
-    best = { score, x: a.x - ox + b.originX / k, y: a.y - oy + b.originY / k, w: b.width / k, h: b.height / k };
-  }
-  return best;
-}
-
-function animalHead(src, a) {
-  const f = animalFace(src, a);
-  if (f) return { kind: "face", label: a.label, cx: f.x + f.w / 2, cy: f.y + f.h / 2, fw: f.w * 1.05, fh: f.h, roll: 0, box: f };
-  const aspect = a.w / a.h;
-  const frac = aspect > 1.4 ? 0.62 : 0.5;     // side-on animals: head is a bigger share of the height
-  const win = findHeadWindow(src, a, frac, aspect > 1.4);
-  const hw = Math.min(win.w, win.h);
-  const cx = win.x + win.w / 2;
-  // tilt a little towards the outside of the body for side-on animals
-  const roll = aspect > 1.4 ? Math.sign(cx - (a.x + a.w / 2)) * deg(8) : 0;
-  const box = { x: cx - hw / 2, y: win.y, w: hw, h: hw };
-  return { kind: "animal", label: a.label, cx, cy: win.y + hw * 0.55, fw: hw * 0.95, fh: hw, roll, box };
-}
-
-// ---------- hat geometry & drawing ----------
-const COLORS = [
-  ["#d4142f", "#8e0a1e"], ["#d4142f", "#8e0a1e"], ["#d4142f", "#8e0a1e"], ["#d4142f", "#8e0a1e"],
-  ["#1c8a4a", "#0d5229"], ["#2357c6", "#132f73"], ["#e0a21b", "#9a6a07"], ["#e04f9a", "#9b2463"], ["#7a3fc4", "#45207a"],
-];
-
-function hatOutline(h) {
-  // Local coordinates: brim centre at (0,0), "up" is -y, units in px.
-  const w = h.w, P0 = { x: 0, y: -0.08 * w };
-  const C = { x: h.ctrl[0] * w * h.dir, y: h.ctrl[1] * w };
-  const T = { x: h.tip[0] * w * h.dir, y: h.tip[1] * w };
-  const N = 40, left = [], right = [], spine = [];
-  for (let i = 0; i <= N; i++) {
-    const t = i / N, u = 1 - t;
-    const p = { x: u * u * P0.x + 2 * u * t * C.x + t * t * T.x, y: u * u * P0.y + 2 * u * t * C.y + t * t * T.y };
-    const d = { x: 2 * u * (C.x - P0.x) + 2 * t * (T.x - C.x), y: 2 * u * (C.y - P0.y) + 2 * t * (T.y - C.y) };
-    const len = Math.hypot(d.x, d.y) || 1, n = { x: -d.y / len, y: d.x / len };
-    const hw = w * (0.42 * Math.pow(1 - t, 0.85) + 0.035);
-    spine.push(p); left.push({ x: p.x + n.x * hw, y: p.y + n.y * hw }); right.push({ x: p.x - n.x * hw, y: p.y - n.y * hw });
-  }
-  return { left, right, spine, tip: T };
-}
-
-function drawHat(c, h) {
-  const { left, right, tip } = hatOutline(h);
-  const w = h.w, rnd = seeded(h.seed);
-  c.save();
-  c.translate(h.x, h.y); c.rotate(h.angle);
-  c.shadowColor = "rgba(0,0,0,.28)"; c.shadowBlur = w * 0.08; c.shadowOffsetY = w * 0.03;
-
-  // cone
-  const g = c.createLinearGradient(-w * 0.5, 0, w * 0.5, 0);
-  g.addColorStop(0, h.color[1]); g.addColorStop(0.45, h.color[0]); g.addColorStop(1, h.color[1]);
-  c.beginPath(); c.moveTo(left[0].x, left[0].y);
-  for (const p of left) c.lineTo(p.x, p.y);
-  for (let i = right.length - 1; i >= 0; i--) c.lineTo(right[i].x, right[i].y);
-  c.closePath(); c.fillStyle = g; c.fill();
-  c.shadowColor = "transparent";
-
-  if (h.stripes) {
-    c.fillStyle = "rgba(255,255,255,.92)";
-    for (let i = 3; i < left.length - 3; i += 6) {
-      c.beginPath(); c.moveTo(left[i].x, left[i].y); c.lineTo(left[i + 2].x, left[i + 2].y);
-      c.lineTo(right[i + 2].x, right[i + 2].y); c.lineTo(right[i].x, right[i].y); c.closePath(); c.fill();
-    }
-  }
-  // subtle highlight along one side
-  c.strokeStyle = "rgba(255,255,255,.18)"; c.lineWidth = w * 0.03; c.beginPath();
-  left.slice(2, 30).forEach((p, i) => i ? c.lineTo(p.x, p.y) : c.moveTo(p.x, p.y)); c.stroke();
-
-  // fluffy brim: soft base band plus lots of small overlapping tufts
-  const bh = w * 0.21;
-  c.shadowColor = "rgba(0,0,0,.25)"; c.shadowBlur = w * 0.05; c.shadowOffsetY = w * 0.02;
-  const base = c.createLinearGradient(0, -bh / 2, 0, bh / 2);
-  base.addColorStop(0, "#ffffff"); base.addColorStop(1, "#ddd6cf");
-  c.fillStyle = base; roundRect(c, -w / 2, -bh / 2, w, bh, bh / 2); c.fill();
-  c.shadowColor = "transparent";
-  for (let i = 0; i < 70; i++) {
-    const x = -w / 2 + bh * 0.3 + rnd() * (w - bh * 0.6);
-    const y = (rnd() - 0.5) * bh * 0.6, r = bh * (0.12 + rnd() * 0.12);
-    const shade = 232 + Math.floor(rnd() * 23);
-    c.fillStyle = `rgba(${shade},${shade - 3},${shade - 6},.6)`;
-    c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
-  }
-
-  // pom-pom or bell
-  const pr = w * 0.13 * h.pom;
-  if (h.bell) {
-    const bg = c.createRadialGradient(tip.x - pr * 0.3, tip.y - pr * 0.3, pr * 0.1, tip.x, tip.y, pr * 1.1);
-    bg.addColorStop(0, "#fff3b0"); bg.addColorStop(0.5, "#f2c230"); bg.addColorStop(1, "#a87a06");
-    c.fillStyle = bg; c.beginPath(); c.arc(tip.x, tip.y + pr * 0.3, pr, 0, Math.PI * 2); c.fill();
-    c.fillStyle = "#5a3f00"; c.beginPath(); c.arc(tip.x, tip.y + pr * 0.75, pr * 0.18, 0, Math.PI * 2); c.fill();
-    c.strokeStyle = "#5a3f00"; c.lineWidth = pr * 0.1; c.beginPath();
-    c.moveTo(tip.x, tip.y + pr * 0.75); c.lineTo(tip.x, tip.y + pr * 1.2); c.stroke();
-  } else {
-    const pg0 = c.createRadialGradient(tip.x - pr * 0.3, tip.y - pr * 0.3, pr * 0.1, tip.x, tip.y, pr);
-    pg0.addColorStop(0, "#ffffff"); pg0.addColorStop(1, "#d6cec6");
-    c.fillStyle = pg0; c.beginPath(); c.arc(tip.x, tip.y, pr, 0, Math.PI * 2); c.fill();
-    for (let i = 0; i < 18; i++) {
-      const a = rnd() * Math.PI * 2, d = pr * (0.55 + 0.4 * rnd());
-      const x = tip.x + Math.cos(a) * d, y = tip.y + Math.sin(a) * d, r = pr * (0.18 + rnd() * 0.15);
-      const pg = c.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.1, x, y, r);
-      pg.addColorStop(0, "#ffffff"); pg.addColorStop(1, "#d9d2cb");
-      c.fillStyle = pg; c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
-    }
-  }
-  c.restore();
-}
-
-function roundRect(c, x, y, w, h, r) {
-  c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r);
-  c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath();
-}
-
-function localBounds(h) {
-  const { left, right, tip } = hatOutline(h);
-  const pts = [...left, ...right, { x: -h.w / 2, y: -h.w * 0.15 }, { x: h.w / 2, y: h.w * 0.15 }];
-  const pr = h.w * 0.13 * h.pom * 1.1;
-  pts.push({ x: tip.x - pr, y: tip.y - pr }, { x: tip.x + pr, y: tip.y + pr * 1.5 });
-  return {
-    x0: Math.min(...pts.map(p => p.x)), x1: Math.max(...pts.map(p => p.x)),
-    y0: Math.min(...pts.map(p => p.y)), y1: Math.max(...pts.map(p => p.y)),
-  };
-}
-function toLocal(h, x, y) {
-  const dx = x - h.x, dy = y - h.y, c = Math.cos(-h.angle), s = Math.sin(-h.angle);
-  return { x: dx * c - dy * s, y: dx * s + dy * c };
-}
-function tipWorld(h) {
-  const { tip } = hatOutline(h), c = Math.cos(h.angle), s = Math.sin(h.angle);
-  return { x: h.x + tip.x * c - tip.y * s, y: h.y + tip.x * s + tip.y * c };
-}
-
-// ---------- the funny part: placement styles ----------
-const STYLES = ["jaunty", "floppy", "sliding", "tiny", "tower", "eyepatch", "stack", "giant", "backwards"];
-
-function baseHat(x, y, w, angle) {
-  return {
-    x, y, w, angle, dir: sign(), ctrl: [0.05, -0.75], tip: [0.55, -1.15],
-    color: pick(COLORS), stripes: Math.random() < 0.22, bell: Math.random() < 0.18,
-    pom: rand(0.9, 1.25), seed: Math.floor(Math.random() * 1e9),
-  };
-}
-
-function hatsForHead(head, style) {
-  const up = { x: Math.sin(head.roll), y: -Math.cos(head.roll) };
-  const right = { x: Math.cos(head.roll), y: Math.sin(head.roll) };
-  const lift = head.kind === "face" ? head.fh * 0.88 : head.fh * 0.5;
-  let x = head.cx + up.x * lift, y = head.cy + up.y * lift;
-  let w = head.fw * (head.kind === "face" ? 1.35 : 1.05);
-  const h = baseHat(x, y, w, head.roll);
-  const d = h.dir;
-  const shift = (r, u) => { h.x += right.x * r + up.x * u; h.y += right.y * r + up.y * u; };
-
-  switch (style) {
-    case "jaunty":    // classic, cheeky tilt with a drooping tail
-      h.angle += d * deg(rand(12, 22));
-      h.tip = [rand(0.6, 0.95), rand(-1.0, -0.75)]; h.ctrl = [0.1, -1.05];
-      shift(d * w * 0.08, 0);
-      break;
-    case "floppy":    // extra long tail flopping down beside the face
-      h.angle += d * deg(rand(4, 10));
-      h.ctrl = [0.2, -1.25]; h.tip = [rand(0.95, 1.15), rand(-0.1, 0.35)];
-      break;
-    case "sliding":   // about to slide off the head
-      h.angle += d * deg(rand(30, 42));
-      shift(d * w * 0.25, -w * 0.06);
-      h.tip = [0.35, -1.25]; h.ctrl = [0, -0.8];
-      break;
-    case "tiny":      // comically small hat perched on one side
-      h.w = w * rand(0.38, 0.48);
-      h.angle += d * deg(rand(15, 28));
-      shift(d * w * 0.22, -w * 0.02);
-      h.tip = [0.15, -1.7]; h.ctrl = [0, -1.0];
-      break;
-    case "tower":     // ridiculously tall, slightly wobbly
-      h.angle += d * deg(rand(3, 9));
-      h.ctrl = [-0.25, -1.6]; h.tip = [rand(0.3, 0.6), rand(-2.9, -2.4)];
-      h.stripes = Math.random() < 0.6;
-      break;
-    case "eyepatch":  // pulled down over one eye
-      if (head.kind !== "face") return hatsForHead(head, "jaunty");
-      shift(d * w * 0.06, -head.fh * 0.3);
-      h.angle += d * deg(rand(22, 30)); h.w = w * 1.08;
-      h.tip = [0.75, -0.85]; h.ctrl = [0.1, -1.0];
-      break;
-    case "stack": {   // hat-ception: a tiny hat on the tip of a hat
-      h.angle += d * deg(rand(6, 14));
-      h.tip = [0.25, -1.3]; h.ctrl = [0, -0.8]; h.bell = false;
-      const t = tipWorld(h);
-      const top = baseHat(t.x, t.y + w * 0.04, w * 0.42, h.angle - d * deg(rand(18, 30)));
-      top.tip = [0.6, -1.0]; top.ctrl = [0.1, -1.0];
-      return [h, top];
-    }
-    case "giant":     // way too big for this head
-      h.w = w * rand(1.45, 1.7);
-      shift(0, -w * 0.05);
-      h.angle += d * deg(rand(6, 12));
-      h.ctrl = [0.25, -1.15]; h.tip = [rand(0.85, 1.05), rand(-0.45, -0.2)];
-      break;
-    case "backwards": // tilted back on the head, tail pointing behind
-      h.angle -= d * deg(rand(18, 26));
-      h.ctrl = [-0.5, -0.9]; h.tip = [rand(-1.1, -0.85), rand(-0.6, -0.3)];
-      shift(-d * w * 0.1, 0);
-      break;
-  }
-  return [h];
-}
-
-function topOf(h) {
-  const b = localBounds(h), c = Math.cos(h.angle), s = Math.sin(h.angle);
-  return Math.min(...[[b.x0, b.y0], [b.x1, b.y0], [b.x0, b.y1], [b.x1, b.y1]].map(([x, y]) => h.y + x * s + y * c));
-}
-
-function keepVisible(list) {
-  // Close-ups (a face filling the whole photo) would get a hat bigger than the picture.
-  const maxW = Math.min(canvas.width, canvas.height) * 0.5;
-  if (list[0].w > maxW) {
-    const k = maxW / list[0].w, ax = list[0].x, ay = list[0].y;
-    list.forEach(o => { o.w *= k; o.x = ax + (o.x - ax) * k; o.y = ay + (o.y - ay) * k; });
-  }
-  // A tall hat poking out of the top of the photo looks like a bucket, so let it flop over instead.
-  if (list.length === 1 && topOf(list[0]) < 0) {
-    const h = list[0];
-    h.ctrl = [0.25, -1.0]; h.tip = [rand(0.95, 1.1), rand(-0.15, 0.2)];
-  }
-  for (const h of list) {
-    const minY = h.w * 0.3;
-    if (h.y < minY) { const dy = minY - h.y; list.forEach(o => { o.y += dy; }); }
-  }
-  return list;
-}
-
-function mutsify() {
+function placeHats() {
   hats = [];
   const order = shuffle([...STYLES]);
-  heads.forEach((head, i) => {
-    const style = order[(i + Math.floor(Math.random() * 3)) % order.length];
-    hats.push(...keepVisible(hatsForHead(head, style)));
-  });
-  select(-1);
-  render();
-  const n = heads.length;
-  status(n
-    ? `🎄 Mutsified ${n} head${n > 1 ? "s" : ""}! Not happy? Click Mutsify! again, or drag the hats around.`
-    : "Hmm, I couldn't spot any faces. Double-click (or double-tap) on a head to give it a hat yourself.");
+  heads.forEach((head, i) => hats.push(...keepVisible(hatsForHead(head, order[(i + Math.floor(Math.random() * 3)) % order.length]))));
+  renderMuts();
 }
 
-// ---------- rendering & editing ----------
-function render(showSelection = true) {
-  if (!photo) return;
-  ctx.drawImage(photo, 0, 0);
-  hats.forEach(h => drawHat(ctx, h));
-  if (showSelection && selected >= 0) {
-    const h = hats[selected], b = localBounds(h);
-    ctx.save(); ctx.translate(h.x, h.y); ctx.rotate(h.angle);
-    ctx.setLineDash([8, 6]); ctx.lineWidth = Math.max(2, canvas.width / 500);
-    ctx.strokeStyle = "#ffffff"; ctx.strokeRect(b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0);
-    ctx.lineDashOffset = 7; ctx.strokeStyle = "#c8102e"; ctx.strokeRect(b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0);
-    ctx.restore();
-  }
-}
-
-function hitTest(x, y) {
+// drag hats around (no extra UI)
+let drag = null;
+const pointIn = e => { const r = muts.getBoundingClientRect(); return { x: (e.clientX - r.left) * muts.width / r.width, y: (e.clientY - r.top) * muts.height / r.height }; };
+muts.addEventListener("pointerdown", e => {
+  const p = pointIn(e);
   for (let i = hats.length - 1; i >= 0; i--) {
-    const p = toLocal(hats[i], x, y), b = localBounds(hats[i]);
-    if (p.x >= b.x0 && p.x <= b.x1 && p.y >= b.y0 && p.y <= b.y1) return i;
-  }
-  return -1;
-}
-
-function select(i) {
-  selected = i;
-  $("editor").classList.toggle("show", i >= 0);
-  if (i >= 0) {
-    const h = hats[i];
-    h._w0 ??= h.w;
-    $("size").value = Math.round(h.w / h._w0 * 100);
-    let a = Math.round(h.angle * 180 / Math.PI); a = ((a + 540) % 360) - 180;
-    $("tilt").value = a;
-  }
-}
-
-function canvasPoint(e) {
-  const r = canvas.getBoundingClientRect();
-  return { x: (e.clientX - r.left) * canvas.width / r.width, y: (e.clientY - r.top) * canvas.height / r.height };
-}
-
-let drag = null, lastTap = 0;
-canvas.addEventListener("pointerdown", e => {
-  if (!photo) return;
-  const p = canvasPoint(e), i = hitTest(p.x, p.y);
-  const now = performance.now();
-  if (i < 0 && now - lastTap < 350) { addHatAt(p); lastTap = 0; return; }
-  lastTap = now;
-  select(i);
-  if (i >= 0) {
-    // bring to front
-    const [h] = hats.splice(i, 1); hats.push(h); select(hats.length - 1);
-    drag = { dx: p.x - h.x, dy: p.y - h.y };
-    canvas.setPointerCapture(e.pointerId);
-  }
-  render();
-});
-canvas.addEventListener("pointermove", e => {
-  if (!drag || selected < 0) return;
-  const p = canvasPoint(e), h = hats[selected];
-  h.x = p.x - drag.dx; h.y = p.y - drag.dy; render();
-});
-const endDrag = () => { drag = null; };
-canvas.addEventListener("pointerup", endDrag);
-canvas.addEventListener("pointercancel", endDrag);
-canvas.addEventListener("wheel", e => {
-  if (selected < 0) return;
-  e.preventDefault();
-  const h = hats[selected];
-  if (e.shiftKey) h.angle += Math.sign(e.deltaY || e.deltaX) * deg(4);
-  else h.w = Math.max(10, h.w * (e.deltaY > 0 ? 0.94 : 1.06));
-  select(selected); render();
-}, { passive: false });
-
-function addHatAt(p) {
-  const w = Math.min(canvas.width, canvas.height) * 0.16;
-  const fake = { kind: "face", cx: p.x, cy: p.y + w * 0.45, fw: w / 1.35, fh: w / 1.35, roll: 0 };
-  const style = pick(["jaunty", "floppy", "sliding", "giant", "backwards", "tower"]);
-  hats.push(...hatsForHead(fake, style));
-  select(hats.length - 1); render();
-}
-
-$("size").addEventListener("input", e => {
-  if (selected < 0) return; const h = hats[selected]; h._w0 ??= h.w;
-  h.w = h._w0 * e.target.value / 100; render();
-});
-$("tilt").addEventListener("input", e => { if (selected < 0) return; hats[selected].angle = deg(+e.target.value); render(); });
-$("flip").onclick = () => { if (selected < 0) return; hats[selected].dir *= -1; render(); };
-$("delete").onclick = () => { if (selected < 0) return; hats.splice(selected, 1); select(-1); render(); };
-$("reroll").onclick = () => {
-  if (selected < 0) return;
-  const old = hats[selected];
-  const fake = { kind: "animal", cx: old.x, cy: old.y + old.w * 0.48, fw: old.w / 1.05, fh: old.w / 1.05, roll: 0 };
-  const [h] = hatsForHead(fake, pick(["jaunty", "floppy", "sliding", "tower", "giant", "backwards", "tiny"]));
-  h.x = old.x; h.y = old.y; if (h.w === fake.fw * 1.05) h.w = old.w;
-  hats[selected] = h; select(selected); render();
-};
-document.addEventListener("keydown", e => {
-  if ((e.key === "Delete" || e.key === "Backspace") && selected >= 0 && document.activeElement.tagName !== "INPUT") {
-    hats.splice(selected, 1); select(-1); render();
+    const l = toLocal(hats[i], p.x, p.y), b = localBounds(hats[i]);
+    if (l.x >= b.x0 && l.x <= b.x1 && l.y >= b.y0 && l.y <= b.y1) {
+      const [h] = hats.splice(i, 1); hats.push(h);
+      drag = { h, dx: p.x - h.x, dy: p.y - h.y }; muts.setPointerCapture(e.pointerId); return;
+    }
   }
 });
+muts.addEventListener("pointermove", e => { if (!drag) return; const p = pointIn(e); drag.h.x = p.x - drag.dx; drag.h.y = p.y - drag.dy; renderMuts(); });
+muts.addEventListener("pointerup", () => { drag = null; });
+muts.addEventListener("pointercancel", () => { drag = null; });
 
-// ---------- loading photos ----------
-async function loadFile(file) {
-  if (!file || !file.type.startsWith("image/")) { status("That doesn't look like an image."); return; }
-  const url = URL.createObjectURL(file);
-  const img = new Image();
-  img.src = url;
-  try { await img.decode(); } catch { status("Couldn't read that image."); return; }
-  const s = Math.min(1, MAX_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
-  photo = document.createElement("canvas");
-  photo.width = Math.round(img.naturalWidth * s); photo.height = Math.round(img.naturalHeight * s);
-  photo.getContext("2d").drawImage(img, 0, 0, photo.width, photo.height);
-  URL.revokeObjectURL(url);
-  canvas.width = photo.width; canvas.height = photo.height;
-  hats = []; select(-1); render();
-  $("stage").classList.add("show");
-  $("aiResult").classList.remove("show"); $("aiDownload").disabled = true; aiStatus("");
-  $("mutsify").disabled = true; $("download").disabled = true;
-  try {
-    await loadDetectors();
-    status("Looking for faces, paws and snouts…");
-    await new Promise(r => setTimeout(r, 30));
-    heads = detectHeads(photo);
-    if (location.hash === "#debug") console.debug("mutsify heads", JSON.stringify(heads.map(h => ({ kind: h.kind, label: h.label, x: Math.round(h.box.x), y: Math.round(h.box.y), w: Math.round(h.box.w) }))));
-    mutsify();
-  } catch (err) {
-    console.error(err);
-    heads = [];
-    status("The detection models couldn't load (are you offline?). You can still double-click to add hats by hand.");
-  }
-  $("mutsify").disabled = false; $("download").disabled = false;
-  $("ai").classList.add("show");
+$("mutsAgain").onclick = () => { if (heads.length) placeHats(); else toast("No faces found in this photo 🙈"); };
+$("mutsSave").onclick = () => muts.toBlob(b => saveBlob(b, "mutsify.jpg"), "image/jpeg", 0.92);
+
+function saveBlob(blob, name) {
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 3000);
 }
 
-$("file").addEventListener("change", e => loadFile(e.target.files[0]));
-const drop = $("drop");
-drop.addEventListener("dragover", e => { e.preventDefault(); drop.classList.add("over"); });
-drop.addEventListener("dragleave", () => drop.classList.remove("over"));
-drop.addEventListener("drop", e => { e.preventDefault(); drop.classList.remove("over"); loadFile(e.dataTransfer.files[0]); });
-document.addEventListener("paste", e => {
-  const item = [...(e.clipboardData?.items || [])].find(i => i.type.startsWith("image/"));
-  if (item) loadFile(item.getAsFile());
-});
-$("mutsify").onclick = mutsify;
-$("download").onclick = () => {
-  render(false);
-  canvas.toBlob(b => {
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(b); a.download = "mutsified.jpg"; a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-    render();
-  }, "image/jpeg", 0.92);
-};
+// ---------- reindeer that eats your photo while the AI works ----------
+const frame = $("funnyFrame"), eat = $("eat"), fx = $("fx"), deer = $("reindeer");
+const ectx = eat.getContext("2d", { willReadFrequently: true }), fctx = fx.getContext("2d");
+const MOUTH = { x: 200 / 220, y: (68 + 12) / 182 };   // mouth position inside the SVG box
+const NOMS = ["nom nom", "*crunch*", "mmm, pixels", "yum!", "*munch*", "tasty!", "chomp!", "so festive 😋"];
 
-// ---------- AI funhouse version (via /api/funhouse server function) ----------
-const aiStatus = msg => { $("aiStatus").textContent = msg; };
-let aiBusy = false;
+function sizeLayers() {
+  const r = frame.getBoundingClientRect(), dpr = Math.min(2, devicePixelRatio || 1);
+  for (const c of [eat, fx]) { c.width = Math.round(r.width * dpr); c.height = Math.round(r.height * dpr); }
+  ectx.setTransform(dpr, 0, 0, dpr, 0, 0); fctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return r;
+}
+
+function bubble(text, x, y, ms = 1100) {
+  const b = document.createElement("div");
+  b.className = "bubble"; b.textContent = text; b.style.left = `${x}px`; b.style.top = `${y}px`;
+  frame.appendChild(b); setTimeout(() => b.remove(), ms);
+}
+
+function startEating() {
+  const r = sizeLayers(), W = r.width, H = r.height;
+  ectx.globalCompositeOperation = "source-over";
+  ectx.drawImage(photo, 0, 0, W, H);
+  eat.style.transition = ""; eat.style.opacity = 1;
+  $("funnyImg").classList.remove("show");
+
+  const dw = Math.max(110, Math.min(230, W * 0.42)), dh = dw * 182 / 220;
+  deer.style.width = `${dw}px`; deer.style.height = `${dh}px`; deer.style.display = "block";
+  const state = { done: false, crumbs: [], pos: { x: -dw * 0.4, y: H * 0.3 }, left: false, W, H, dw, dh, alive: true };
+
+  const place = () => {
+    const mx = state.left ? 1 - MOUTH.x : MOUTH.x;
+    deer.style.left = `${state.pos.x - mx * dw}px`; deer.style.top = `${state.pos.y - MOUTH.y * dh}px`;
+    deer.classList.toggle("left", state.left);
+  };
+  place();
+
+  // crumbs animation loop
+  const tick = () => {
+    if (!state.alive) return;
+    fctx.clearRect(0, 0, W, H);
+    state.crumbs = state.crumbs.filter(c => c.life > 0);
+    for (const c of state.crumbs) {
+      c.vy += 0.35; c.x += c.vx; c.y += c.vy; c.life -= 1; c.rot += c.vr;
+      fctx.save(); fctx.globalAlpha = Math.min(1, c.life / 20); fctx.translate(c.x, c.y); fctx.rotate(c.rot);
+      fctx.fillStyle = c.color; fctx.fillRect(-c.s / 2, -c.s / 2, c.s, c.s); fctx.restore();
+    }
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+
+  const moveTo = (x, y, ms) => new Promise(res => {
+    const sx = state.pos.x, sy = state.pos.y, t0 = performance.now();
+    if (Math.abs(x - sx) > 4) state.left = x < sx;
+    deer.classList.add("walking");
+    const step = now => {
+      const t = Math.min(1, (now - t0) / ms), e = t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+      state.pos.x = sx + (x - sx) * e; state.pos.y = sy + (y - sy) * e; place();
+      if (t < 1 && state.alive) requestAnimationFrame(step); else { deer.classList.remove("walking"); res(); }
+    };
+    requestAnimationFrame(step);
+  });
+
+  const bite = (x, y, r) => {
+    // sample the photo colour for the crumbs before it is gone
+    const sx = Math.min(eat.width - 1, Math.max(0, x * eat.width / W)) | 0, sy = Math.min(eat.height - 1, Math.max(0, y * eat.height / H)) | 0;
+    const px = ectx.getImageData(sx, sy, 1, 1).data;
+    const color = px[3] ? `rgb(${px[0]},${px[1]},${px[2]})` : "#c48a52";
+    ectx.globalCompositeOperation = "destination-out";
+    ectx.beginPath(); ectx.arc(x, y, r, 0, Math.PI * 2); ectx.fill();
+    for (let i = 0; i < 6; i++) {               // scalloped, tooth-mark edge
+      const a = rand(0, Math.PI * 2);
+      ectx.beginPath(); ectx.arc(x + Math.cos(a) * r * 0.92, y + Math.sin(a) * r * 0.92, r * rand(0.25, 0.4), 0, Math.PI * 2); ectx.fill();
+    }
+    ectx.globalCompositeOperation = "source-over";
+    for (let i = 0; i < 14; i++) state.crumbs.push({ x, y, vx: rand(-3, 3), vy: rand(-4, 0), s: rand(3, 7), color, life: rand(35, 60), rot: 0, vr: rand(-.3, .3) });
+  };
+
+  state.run = (async () => {
+    const r = Math.max(18, Math.min(W, H) * 0.1), step = r * 1.35;
+    const rows = [];
+    for (let y = r * 0.6, i = 0; y < H; y += step, i++) {
+      const row = [];
+      for (let x = r * 0.6; x < W; x += step) row.push({ x: x + rand(-r * .2, r * .2), y: y + rand(-r * .2, r * .2) });
+      rows.push(i % 2 ? row.reverse() : row);
+    }
+    const targets = rows.flat();
+    await moveTo(targets[0].x, targets[0].y, 1300);
+    if (!state.done) { bubble("Ooh, a photo! 🦌", state.pos.x, state.pos.y - dh * .55, 1500); await sleep(700); }
+    const t0 = performance.now();
+    for (const t of targets) {
+      if (state.done) break;
+      await moveTo(t.x, t.y, 380);
+      if (state.done) break;
+      deer.classList.remove("chomp"); void deer.offsetWidth; deer.classList.add("chomp");
+      await sleep(130); bite(t.x, t.y, r);
+      await sleep(260); bite(t.x + rand(-r * .4, r * .4), t.y + rand(-r * .3, r * .3), r * 0.8);
+      await sleep(150);
+      if (Math.random() < 0.16) bubble(pick(NOMS), state.pos.x, state.pos.y - dh * .55);
+      // eat a bit slower the longer it takes, so the photo lasts
+      await sleep(200 + (performance.now() - t0) / 60);
+    }
+    while (!state.done) {   // photo finished but the AI isn't: wait politely
+      bubble(pick(["more please? 🥺", "is dessert coming?", "*licks plate*", "still hungry…"]), state.pos.x, state.pos.y - dh * .55, 1500);
+      deer.classList.remove("chomp"); void deer.offsetWidth; deer.classList.add("chomp");
+      await sleep(2200);
+    }
+  })();
+  return state;
+}
+
+async function stopEating(state, ok) {
+  state.done = true;
+  await state.run;
+  const { W, H, dh } = state;
+  bubble(ok ? "*BURP* 🎁" : "oops… I'm stuffed 🤢", state.pos.x, state.pos.y - dh * .55, 1600);
+  await sleep(700);
+  if (ok) {
+    $("funnyImg").classList.add("show");
+    eat.style.transition = "opacity .6s"; eat.style.opacity = 0;
+    confetti(W, H);
+  } else {
+    ectx.globalCompositeOperation = "source-over"; ectx.drawImage(photo, 0, 0, W, H);   // give the photo back
+  }
+  await new Promise(res => {
+    const sx = state.pos.x, t0 = performance.now(); deer.classList.add("walking"); deer.classList.remove("left");
+    const step = now => {
+      const t = Math.min(1, (now - t0) / 1200);
+      state.pos.x = sx + (W + state.dw - sx) * t * t;
+      deer.style.left = `${state.pos.x - MOUTH.x * state.dw}px`;
+      if (t < 1) requestAnimationFrame(step); else res();
+    };
+    requestAnimationFrame(step);
+  });
+  deer.style.display = "none"; deer.classList.remove("walking", "chomp");
+  state.alive = false; fctx.clearRect(0, 0, W, H);
+}
+
+function confetti(W, H) {
+  const colors = ["#ff2d55", "#ffd93d", "#3ddc97", "#5b8cff", "#ff8fb8", "#fff"];
+  for (let i = 0; i < 60; i++) {
+    const p = document.createElement("i");
+    p.style.cssText = `position:absolute;left:${W / 2}px;top:${H / 2}px;width:9px;height:14px;border-radius:2px;z-index:7;pointer-events:none;background:${pick(colors)}`;
+    frame.appendChild(p);
+    const a = rand(0, Math.PI * 2), d = rand(80, Math.max(W, H) * 0.7);
+    p.animate([
+      { transform: "translate(-50%,-50%) rotate(0)", opacity: 1 },
+      { transform: `translate(${Math.cos(a) * d}px, ${Math.sin(a) * d + 60}px) rotate(${rand(-720, 720)}deg)`, opacity: 0 },
+    ], { duration: rand(900, 1500), easing: "cubic-bezier(.2,.8,.3,1)" }).onfinish = () => p.remove();
+  }
+}
+
+// ---------- funny (AI) version ----------
+async function api(url, init) {
+  const res = await fetch(url, init);
+  const data = await res.json().catch(() => ({ error: `Server error ${res.status}` }));
+  if (!res.ok || data.error) throw new Error(data.error || `Server error ${res.status}`);
+  return data;
+}
 
 function photoAsDataURL(maxSide = 1024) {
   const k = Math.min(1, maxSide / Math.max(photo.width, photo.height));
@@ -710,61 +554,96 @@ function photoAsDataURL(maxSide = 1024) {
 }
 
 function subjectCounts() {
-  // What the detector found, so the AI model knows exactly who is in the picture.
   const counts = {};
-  for (const h of heads) {
-    const label = h.label || "person";
-    counts[label] = (counts[label] || 0) + 1;
-  }
+  for (const h of heads) counts[h.label || "person"] = (counts[h.label || "person"] || 0) + 1;
   return counts;
 }
 
-async function api(url, init) {
-  const res = await fetch(url, init);
-  const data = await res.json().catch(() => ({ error: `Server error ${res.status}` }));
-  if (!res.ok || data.error) throw new Error(data.error || `Server error ${res.status}`);
-  return data;
-}
-
-$("aiGo").onclick = async () => {
-  if (!photo || aiBusy) return;
-  aiBusy = true; $("aiGo").disabled = true; $("aiDownload").disabled = true;
-  const started = Date.now();
+let funnyBusy = false;
+async function makeFunny() {
+  if (!photo || funnyBusy) return;
+  funnyBusy = true; $("funnyAgain").disabled = true; $("funnySave").disabled = true;
+  const state = startEating();
+  let ok = false;
   try {
-    aiStatus("Sending your photo to the funhouse…");
+    await detectReady;                     // lets the prompt name exactly who is in the photo
     const first = await api("/api/funhouse", {
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ image: photoAsDataURL(), subjects: subjectCounts() }),
     });
-    const id = first.id;
-    let failures = 0;
-    if (first.status === "succeeded") $("aiResult").src = first.image;
-    else for (;;) {
-      await new Promise(r => setTimeout(r, 2000));
-      aiStatus(`Bending the mirrors… ${Math.round((Date.now() - started) / 1000)}s`);
+    let result = first.status === "succeeded" ? first.image : null, failures = 0;
+    const t0 = Date.now();
+    while (!result) {
+      await sleep(2000);
       let r;
-      try { r = await api(`/api/funhouse?id=${encodeURIComponent(id)}`); failures = 0; }
-      catch (err) { if (++failures >= 6) throw err; continue; }   // Replicate hiccups now and then
-      if (r.status === "succeeded") { $("aiResult").src = r.image; break; }
-      if (r.status === "failed" || r.status === "canceled") throw new Error(r.error || "Generation failed.");
-      if (Date.now() - started > 180000) throw new Error("This is taking too long, please try again.");
+      try { r = await api(`/api/funhouse?id=${encodeURIComponent(first.id)}`); failures = 0; }
+      catch (err) { if (++failures >= 6) throw err; continue; }
+      if (r.status === "succeeded") result = r.image;
+      else if (r.status === "failed" || r.status === "canceled") throw new Error(r.error || "Generation failed");
+      else if (Date.now() - t0 > 180000) throw new Error("This took too long");
     }
-    $("aiResult").classList.add("show"); $("aiDownload").disabled = false;
-    aiStatus("Done! Click the button again for a different version.");
+    await new Promise((res, rej) => { const img = $("funnyImg"); img.onload = res; img.onerror = rej; img.src = result; });
+    ok = true;
   } catch (err) {
     console.error(err);
-    aiStatus(location.protocol === "file:"
-      ? "The AI version needs the Mutsify server (see README); it doesn't work when opening the file directly."
-      : `Sorry, that didn't work: ${err.message}`);
+    toast(location.protocol === "file:" ? "The funny version needs the Mutsify server 🙈" : "The funny version didn't work, try 🎲 Again");
   } finally {
-    aiBusy = false; $("aiGo").disabled = false;
+    await stopEating(state, ok);
+    funnyBusy = false; $("funnyAgain").disabled = false; $("funnySave").disabled = !ok;
   }
-};
+}
+$("funnyAgain").onclick = makeFunny;
+$("funnySave").onclick = async () => saveBlob(await (await fetch($("funnyImg").src)).blob(), "mutsify-funny.jpg");
 
-$("aiDownload").onclick = () => {
-  const a = document.createElement("a");
-  a.href = $("aiResult").src; a.download = "mutsify-funhouse.jpg"; a.click();
-};
+// ---------- loading a photo ----------
+async function loadFile(file) {
+  if (!file || !file.type.startsWith("image/")) { toast("That's not a photo 🤔"); return; }
+  if (funnyBusy) { toast("Hang on, the reindeer is still eating 🦌"); return; }
+  const url = URL.createObjectURL(file), img = new Image();
+  img.src = url;
+  try { await img.decode(); } catch { toast("Couldn't open that photo"); return; }
+  const s = Math.min(1, 1800 / Math.max(img.naturalWidth, img.naturalHeight));
+  photo = document.createElement("canvas");
+  photo.width = Math.round(img.naturalWidth * s); photo.height = Math.round(img.naturalHeight * s);
+  photo.getContext("2d").drawImage(img, 0, 0, photo.width, photo.height);
+  URL.revokeObjectURL(url);
+
+  muts.width = photo.width; muts.height = photo.height; setCanvasSize(photo.width, photo.height);
+  $("funnyImg").removeAttribute("src");
+  $("funnyImg").style.aspectRatio = `${photo.width} / ${photo.height}`;
+  heads = []; hats = []; renderMuts();
+  document.body.classList.add("has-photo");
+  await new Promise(r => requestAnimationFrame(r));
+
+  $("mutsBusy").hidden = false;
+  detectReady = (async () => {
+    try {
+      heads = await findHeads(photo);
+      placeHats();
+      if (!heads.length) toast("No faces found 🙈");
+    } catch (err) {
+      console.error(err); toast("Face finder couldn't load");
+    } finally { $("mutsBusy").hidden = true; }
+  })();
+  makeFunny();
+}
+
+$("file").addEventListener("change", e => { loadFile(e.target.files[0]); e.target.value = ""; });
+const drop = $("drop");
+drop.addEventListener("dragover", e => { e.preventDefault(); drop.classList.add("over"); });
+drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+document.addEventListener("dragover", e => e.preventDefault());
+document.addEventListener("drop", e => { e.preventDefault(); drop.classList.remove("over"); loadFile(e.dataTransfer.files[0]); });
+document.addEventListener("paste", e => {
+  const item = [...(e.clipboardData?.items || [])].find(i => i.type.startsWith("image/"));
+  if (item) loadFile(item.getAsFile());
+});
+$("newPhoto").onclick = () => $("file").click();
+
+// Warm up the face finder while the visitor is still picking a photo: starting the models
+// briefly freezes the page, and we'd rather that not happen while the reindeer is eating.
+const warmUp = () => (worker ? ask({ type: "warm" }) : loadDetectors()).catch(() => {});
+if ("requestIdleCallback" in window) requestIdleCallback(warmUp, { timeout: 2500 }); else setTimeout(warmUp, 1200);
 </script>
 </body>
 </html>

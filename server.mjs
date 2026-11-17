@@ -21,9 +21,11 @@ http.createServer(async (req, res) => {
     res.end(Buffer.from(await response.arrayBuffer()));
     return;
   }
-  if (url.pathname === "/" || url.pathname === "/index.html") {
-    res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-    res.end(await readFile(new URL("./index.html", import.meta.url)));
+  const files = { "/": ["index.html", "text/html"], "/index.html": ["index.html", "text/html"], "/engine.js": ["engine.js", "text/javascript"], "/detect-worker.js": ["detect-worker.js", "text/javascript"] };
+  if (files[url.pathname]) {
+    const [name, type] = files[url.pathname];
+    res.writeHead(200, { "content-type": `${type}; charset=utf-8` });
+    res.end(await readFile(new URL(`./${name}`, import.meta.url)));
     return;
   }
   res.writeHead(404).end("Not found");
