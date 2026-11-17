@@ -60,6 +60,17 @@
   .editor label { display: flex; gap: 8px; align-items: center; font-size: .92rem; }
   .editor input[type=range] { width: 130px; accent-color: var(--red); }
   .hint { font-size: .9rem; color: var(--muted); margin-top: 10px; }
+  .ai {
+    display: none; margin-top: 24px; background: var(--card); border: 1px solid var(--line);
+    border-radius: 14px; padding: 16px;
+  }
+  .ai.show { display: block; }
+  .ai h2 { font-size: 1.2rem; margin: 0 0 4px; }
+  .ai p { margin: 0 0 12px; color: var(--muted); font-size: .92rem; }
+  .ai .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  #aiStatus { color: var(--muted); font-size: .92rem; }
+  #aiResult { display: none; width: 100%; height: auto; margin-top: 12px; border-radius: 12px; }
+  #aiResult.show { display: block; }
   footer { margin-top: 32px; font-size: .85rem; color: var(--muted); }
 </style>
 </head>
@@ -93,7 +104,18 @@
     <p class="hint">Click Mutsify! again for a new arrangement. Drag a hat to move it, use the mouse wheel to resize (Shift + wheel to tilt), and double-click or double-tap anywhere to add another hat.</p>
   </div>
 
-  <footer>Everything happens in your browser — your photo is never uploaded. Face and animal detection by Google MediaPipe; animal heads are estimated from the animal's outline, so drag a hat if it lands on a tail.</footer>
+  <section class="ai" id="ai">
+    <h2>✨ AI funhouse version</h2>
+    <p>Let an AI image model redraw your photo: every face stretched and squashed like in a funhouse mirror, each with its own silly Santa hat. Takes about 10–30 seconds. Every try is different.</p>
+    <div class="row">
+      <button class="primary" id="aiGo">✨ Make funhouse version</button>
+      <button id="aiDownload" disabled>⬇ Download AI image</button>
+      <span id="aiStatus" aria-live="polite"></span>
+    </div>
+    <img id="aiResult" alt="AI funhouse version of your photo">
+  </section>
+
+  <footer>The hat editor runs entirely in your browser. Face and animal detection by Google MediaPipe; animal heads are estimated from the animal's outline, so drag a hat if it lands on a tail. Only the AI funhouse version sends your photo to a server: it goes to Replicate (model FLUX.2 klein by Black Forest Labs) when you click its button.</footer>
 </main>
 
 <script type="module">
@@ -637,6 +659,7 @@ async function loadFile(file) {
   canvas.width = photo.width; canvas.height = photo.height;
   hats = []; select(-1); render();
   $("stage").classList.add("show");
+  $("aiResult").classList.remove("show"); $("aiDownload").disabled = true; aiStatus("");
   $("mutsify").disabled = true; $("download").disabled = true;
   try {
     await loadDetectors();
@@ -651,6 +674,7 @@ async function loadFile(file) {
     status("The detection models couldn't load (are you offline?). You can still double-click to add hats by hand.");
   }
   $("mutsify").disabled = false; $("download").disabled = false;
+  $("ai").classList.add("show");
 }
 
 $("file").addEventListener("change", e => loadFile(e.target.files[0]));
@@ -671,6 +695,75 @@ $("download").onclick = () => {
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
     render();
   }, "image/jpeg", 0.92);
+};
+
+// ---------- AI funhouse version (via /api/funhouse server function) ----------
+const aiStatus = msg => { $("aiStatus").textContent = msg; };
+let aiBusy = false;
+
+function photoAsDataURL(maxSide = 1024) {
+  const k = Math.min(1, maxSide / Math.max(photo.width, photo.height));
+  const c = document.createElement("canvas");
+  c.width = Math.round(photo.width * k); c.height = Math.round(photo.height * k);
+  c.getContext("2d").drawImage(photo, 0, 0, c.width, c.height);
+  return c.toDataURL("image/jpeg", 0.9);
+}
+
+function subjectCounts() {
+  // What the detector found, so the AI model knows exactly who is in the picture.
+  const counts = {};
+  for (const h of heads) {
+    const label = h.label || "person";
+    counts[label] = (counts[label] || 0) + 1;
+  }
+  return counts;
+}
+
+async function api(url, init) {
+  const res = await fetch(url, init);
+  const data = await res.json().catch(() => ({ error: `Server error ${res.status}` }));
+  if (!res.ok || data.error) throw new Error(data.error || `Server error ${res.status}`);
+  return data;
+}
+
+$("aiGo").onclick = async () => {
+  if (!photo || aiBusy) return;
+  aiBusy = true; $("aiGo").disabled = true; $("aiDownload").disabled = true;
+  const started = Date.now();
+  try {
+    aiStatus("Sending your photo to the funhouse…");
+    const first = await api("/api/funhouse", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ image: photoAsDataURL(), subjects: subjectCounts() }),
+    });
+    const id = first.id;
+    let failures = 0;
+    if (first.status === "succeeded") $("aiResult").src = first.image;
+    else for (;;) {
+      await new Promise(r => setTimeout(r, 2000));
+      aiStatus(`Bending the mirrors… ${Math.round((Date.now() - started) / 1000)}s`);
+      let r;
+      try { r = await api(`/api/funhouse?id=${encodeURIComponent(id)}`); failures = 0; }
+      catch (err) { if (++failures >= 6) throw err; continue; }   // Replicate hiccups now and then
+      if (r.status === "succeeded") { $("aiResult").src = r.image; break; }
+      if (r.status === "failed" || r.status === "canceled") throw new Error(r.error || "Generation failed.");
+      if (Date.now() - started > 180000) throw new Error("This is taking too long, please try again.");
+    }
+    $("aiResult").classList.add("show"); $("aiDownload").disabled = false;
+    aiStatus("Done! Click the button again for a different version.");
+  } catch (err) {
+    console.error(err);
+    aiStatus(location.protocol === "file:"
+      ? "The AI version needs the Mutsify server (see README); it doesn't work when opening the file directly."
+      : `Sorry, that didn't work: ${err.message}`);
+  } finally {
+    aiBusy = false; $("aiGo").disabled = false;
+  }
+};
+
+$("aiDownload").onclick = () => {
+  const a = document.createElement("a");
+  a.href = $("aiResult").src; a.download = "mutsify-funhouse.jpg"; a.click();
 };
 </script>
 </body>
