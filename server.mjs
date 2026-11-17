@@ -16,7 +16,7 @@ http.createServer(async (req, res) => {
       headers: req.headers,
       body: req.method === "POST" ? Buffer.concat(chunks) : undefined,
     });
-    const response = await handler(request);
+    const response = await handler(request, { ip: req.socket.remoteAddress });
     res.writeHead(response.status, Object.fromEntries(response.headers));
     res.end(Buffer.from(await response.arrayBuffer()));
     return;

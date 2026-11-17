@@ -8,7 +8,7 @@ and reveals the result with confetti.
 
 ## Design
 
-Soft, blurred photo of fluffy plush reindeer in Santa hats behind frosted-glass panels, a small app icon,
+Plush snowflakes drift down the whole time over a soft, blurred photo of fluffy plush reindeer in Santa hats behind frosted-glass panels, a small app icon,
 a thin-line icon toolbar (new photo · again · save) and colour dots that tint the page
 (Frosty Blue, Cranberry, Pine, Gingerbread, Sugarplum). The images in `assets/` were generated with the same
 Replicate model; the photo-eating reindeer was generated on a green screen and cut out.
@@ -23,8 +23,16 @@ Replicate model; the photo-eating reindeer was generated on a green screen and c
   ([FLUX.2 klein 4B](https://replicate.com/black-forest-labs/flux-2-klein-4b)). The Replicate token stays on
   the server (`REPLICATE_API_TOKEN`).
 
-Every upload (and every 🎲 Again) is one paid Replicate prediction, and anyone who can open the site can use it,
-so keep an eye on your Replicate usage or set a spending limit there.
+Every upload (and every ↻ Again) is one paid Replicate prediction. To prevent abuse each visitor can make
+**10 pictures per 5 hours** (`lib/rate-limit.mjs`). Visitors are told when they can try again.
+
+- Counted per IP address; only a salted hash of the IP is stored, in Netlify Blobs (store `mutsify-rate-limit`).
+  Locally the counts are kept in memory.
+- A generation that fails to start doesn't count.
+- Limits: people sharing one network (office, school, family wifi) share one counter, and someone who switches
+  networks (e.g. wifi → mobile data) gets a new one. It stops casual abuse, not a determined attacker, so a
+  spending limit in your Replicate account is still a good idea.
+- Optional environment variables: `RATE_LIMIT` (default 10), `RATE_LIMIT_HOURS` (default 5), `RATE_LIMIT_SALT`.
 
 Known limitation: the small model sometimes still adds an extra head or hat (seen on a grazing horse whose head
 is hidden in the grass). 🎲 Again gives a new attempt.
@@ -38,5 +46,6 @@ REPLICATE_API_TOKEN=r8_your_token node server.mjs
 
 ## Deploy on Netlify
 
-Connect the repository (branch `main`); `netlify.toml` publishes the site and the function. Set the environment
+Connect the repository (branch `main`); `netlify.toml` publishes the site and the function, and Netlify installs
+`@netlify/blobs` from `package.json` for the rate limit. Set the environment
 variable `REPLICATE_API_TOKEN` in the site settings.

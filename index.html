@@ -27,6 +27,16 @@
   .bg { position: fixed; inset: -24px; z-index: 0; background: url("assets/background.jpg") center / cover no-repeat; filter: blur(5px) saturate(1.05); }
   .tint { position: fixed; inset: 0; z-index: 0; background: rgba(var(--tint), .28); transition: background .6s; }
 
+  /* plush snowflakes drifting down the whole time */
+  .snow { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+  .flake { position: absolute; top: 0; left: var(--x); width: var(--size); animation: fall var(--fall) linear infinite; animation-delay: var(--delay); will-change: transform; }
+  .flake span { display: block; animation: sway var(--sway) ease-in-out infinite alternate; }
+  .flake img { display: block; width: 100%; filter: blur(var(--blur)) drop-shadow(0 6px 8px rgba(0,0,0,.12)); opacity: var(--alpha); animation: twirl var(--twirl) linear infinite; }
+  @keyframes fall { from { transform: translateY(-20vh); } to { transform: translateY(115vh); } }
+  @keyframes sway { from { transform: translateX(calc(var(--drift) * -1)); } to { transform: translateX(var(--drift)); } }
+  @keyframes twirl { to { transform: rotate(var(--turn)); } }
+  @media (prefers-reduced-motion: reduce) { .snow { display: none; } }
+
   main { position: relative; z-index: 1; max-width: 720px; margin: 0 auto; padding: 44px 16px 56px; text-align: center; }
   .icon { width: 72px; height: 72px; border-radius: 18px; display: block; margin: 0 auto 14px; box-shadow: 0 8px 22px rgba(0,0,0,.18); animation: nod 3.5s ease-in-out infinite; }
   @keyframes nod { 50% { transform: rotate(-5deg) translateY(-2px); } }
@@ -115,6 +125,7 @@
 <body>
 <div class="bg"></div>
 <div class="tint"></div>
+<div class="snow" id="snow" aria-hidden="true"></div>
 
 <main>
   <img class="icon" src="assets/icon.jpg" alt="">
@@ -169,6 +180,31 @@ let photo = null, heads = [], detectReady = null;
 function toast(msg) {
   const t = $("toast"); t.textContent = msg; t.classList.add("show");
   clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove("show"), 4500);
+}
+
+// ---------- plush snowflakes ----------
+{
+  const count = innerWidth < 600 ? 14 : 24;
+  for (let i = 0; i < count; i++) {
+    const depth = Math.random();                       // 0 = far away, 1 = close by
+    const f = document.createElement("div");
+    f.className = "flake";
+    const props = {
+      "--x": `${rand(-4, 98)}vw`,
+      "--size": `${Math.round(18 + depth * depth * 84)}px`,
+      "--blur": `${(1 - depth) * 2.2 + (depth > .9 ? 1.5 : 0)}px`,
+      "--alpha": (0.55 + depth * 0.45).toFixed(2),
+      "--fall": `${(30 - depth * 16).toFixed(1)}s`,     // close flakes fall faster
+      "--delay": `${-rand(0, 30).toFixed(1)}s`,         // already mid-air on load
+      "--sway": `${rand(2.5, 5).toFixed(1)}s`,
+      "--drift": `${Math.round(rand(15, 50))}px`,
+      "--twirl": `${rand(10, 24).toFixed(1)}s`,
+      "--turn": `${pick([-360, 360])}deg`,
+    };
+    for (const [k, v] of Object.entries(props)) f.style.setProperty(k, v);
+    f.innerHTML = `<span><img src="assets/flake${1 + (i % 2)}.webp" alt=""></span>`;
+    $("snow").appendChild(f);
+  }
 }
 
 // ---------- colour dots ----------
@@ -327,11 +363,11 @@ function startEating() {
   return state;
 }
 
-async function stopEating(state, ok) {
+async function stopEating(state, ok, message) {
   state.done = true;
   await state.run;
   const { W, H } = state;
-  bubble(ok ? "*BURP* 🎁" : "oops… I'm stuffed 🤢", state.pos.x, state.pos.y - state.dh * .5, 1600);
+  bubble(message || (ok ? "*BURP* 🎁" : "oops… I'm stuffed 🤢"), state.pos.x, state.pos.y - state.dh * .5, 1800);
   await sleep(700);
   if (ok) {
     $("funnyImg").classList.add("show");
@@ -373,7 +409,7 @@ function sparkle(W, H) {
 async function api(url, init) {
   const res = await fetch(url, init);
   const data = await res.json().catch(() => ({ error: `Server error ${res.status}` }));
-  if (!res.ok || data.error) throw new Error(data.error || `Server error ${res.status}`);
+  if (!res.ok || data.error) throw Object.assign(new Error(data.error || `Server error ${res.status}`), { data });
   return data;
 }
 
@@ -396,13 +432,14 @@ async function makeFunny() {
   if (!photo || busy) return;
   busy = true; $("again").disabled = true; $("save").disabled = true; $("again").classList.add("spin");
   const state = startEating();
-  let ok = false;
+  let ok = false, message = null, remaining = null;
   try {
     await detectReady;                     // lets the prompt name exactly who is in the photo
     const first = await api("/api/funhouse", {
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ image: photoAsDataURL(), subjects: subjectCounts() }),
     });
+    remaining = first.remaining ?? null;
     let result = first.status === "succeeded" ? first.image : null, failures = 0;
     const t0 = Date.now();
     while (!result) {
@@ -418,10 +455,19 @@ async function makeFunny() {
     ok = true;
   } catch (err) {
     console.error(err);
-    toast(location.protocol === "file:" ? "This needs the Mutsify server 🙈" : "That didn't work — try again ↻");
+    if (err.data?.limited) {
+      const at = new Date(err.data.retryAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      message = "I'm full for now 😴";
+      toast(`You've made 10 pictures in the last 5 hours. More from ${at} 🦌`);
+    } else {
+      toast(location.protocol === "file:" ? "This needs the Mutsify server 🙈" : "That didn't work — try again ↻");
+    }
   } finally {
-    await stopEating(state, ok);
+    await stopEating(state, ok, message);
     busy = false; $("again").disabled = false; $("save").disabled = !ok; $("again").classList.remove("spin");
+    if (ok && remaining !== null && remaining <= 3) {
+      toast(remaining === 0 ? "That was your last one for the next 5 hours 🦌" : `${remaining} more for the next 5 hours 🦌`);
+    }
   }
 }
 $("again").onclick = makeFunny;
