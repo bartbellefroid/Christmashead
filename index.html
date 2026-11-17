@@ -89,6 +89,8 @@
   .dot.on { box-shadow: 0 0 0 3px rgba(255,255,255,.75), 0 2px 6px rgba(0,0,0,.15); }
   .tagline { font-family: "Parisienne", cursive; font-size: 1.7rem; margin-top: 14px; opacity: .95; text-shadow: 0 1px 10px rgba(0,0,0,.12); }
 
+  .privacy { margin: 26px auto 0; max-width: 420px; font-size: .78rem; line-height: 1.4; opacity: .75; text-shadow: 0 1px 6px rgba(0,0,0,.15); }
+
   /* the fluffy reindeer that eats your photo */
   #reindeer { position: absolute; z-index: 5; pointer-events: none; display: none; }
   #reindeer img { width: 100%; height: 100%; display: block; filter: drop-shadow(0 10px 10px rgba(0,0,0,.28)); transform-origin: 50% 100%; }
@@ -163,6 +165,7 @@
 
   <div class="dots" id="dots"></div>
   <div class="tagline" id="tagline"></div>
+  <p class="privacy">Your photo is sent to Replicate's AI to add the hats. Mutsify doesn't keep it.</p>
 </main>
 
 <div class="toast glass" id="toast"></div>
@@ -516,7 +519,10 @@ async function makeFunny() {
     ok = true;
   } catch (err) {
     console.error(err);
-    if (err.data?.limited) {
+    if (err.data?.limited && err.data.reason === "global") {
+      message = "I'm full for today 😴";
+      toast("Mutsify has made all its pictures for today. Come back tomorrow 🦌");
+    } else if (err.data?.limited) {
       const at = new Date(err.data.retryAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
       message = "I'm full for now 😴";
       toast(`You've made 10 pictures in the last 5 hours. More from ${at} 🦌`);

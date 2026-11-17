@@ -128,13 +128,15 @@ async function start(req, context) {
   }
   if (image.length * 0.75 > MAX_IMAGE_BYTES) return json({ error: "Image is too large (max 4 MB)." }, 413);
 
-  // Abuse protection: LIMIT generations per WINDOW per visitor (by IP address).
+  // Abuse protection: per-visitor limit plus a daily cap for everyone together (lib/rate-limit.mjs).
   const ip = clientIp(req, context);
   const slot = await takeSlot(ip);
   if (!slot.ok) {
     return json({
-      error: `You can make ${LIMIT} pictures every ${WINDOW_MS / 3600000} hours.`,
-      limited: true, retryAt: slot.retryAt,
+      error: slot.reason === "global"
+        ? "Mutsify has made all its pictures for today. Please come back tomorrow."
+        : `You can make ${LIMIT} pictures every ${WINDOW_MS / 3600000} hours.`,
+      limited: true, reason: slot.reason, retryAt: slot.retryAt,
     }, 429);
   }
   let p;

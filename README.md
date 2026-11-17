@@ -29,16 +29,21 @@ picture can go straight into Photos / the gallery; on computers it downloads as 
   ([FLUX.2 klein 4B](https://replicate.com/black-forest-labs/flux-2-klein-4b)). The Replicate token stays on
   the server (`REPLICATE_API_TOKEN`).
 
-Every upload (and every ↻ Again) is one paid Replicate prediction. To prevent abuse each visitor can make
-**10 pictures per 5 hours** (`lib/rate-limit.mjs`). Visitors are told when they can try again.
+Every upload (and every ↻ Again) is one paid Replicate prediction. Abuse protection (`lib/rate-limit.mjs`):
 
-- Counted per IP address; only a salted hash of the IP is stored, in Netlify Blobs (store `mutsify-rate-limit`).
-  Locally the counts are kept in memory.
-- A generation that fails to start doesn't count.
-- Limits: people sharing one network (office, school, family wifi) share one counter, and someone who switches
-  networks (e.g. wifi → mobile data) gets a new one. It stops casual abuse, not a determined attacker, so a
-  spending limit in your Replicate account is still a good idea.
-- Optional environment variables: `RATE_LIMIT` (default 10), `RATE_LIMIT_HOURS` (default 5), `RATE_LIMIT_SALT`.
+- **Per visitor: 10 pictures per 5 hours.** Visitors are identified by IP address; IPv6 addresses are grouped per
+  /64 network, so hopping between addresses of one connection doesn't give a fresh counter.
+- **For everyone together: 300 pictures per UTC day**, so many different addresses (VPNs, botnets) can't run up
+  unlimited costs either.
+- Counts are updated with compare-and-swap (Netlify Blobs conditional writes, store `mutsify-rate-limit`), so a burst
+  of simultaneous requests can't slip past the limit. If the counter can't be updated cleanly the request is refused.
+- A generation that fails to start doesn't count. Visitors are told when they can try again.
+- Only a salted hash of the IP is stored. **Set a secret `RATE_LIMIT_SALT`** in the Netlify environment variables;
+  the default salt is public in this repository, so without your own salt the hashes could be traced back to IPs.
+- Limits: people sharing one network share one counter, and someone switching networks (wifi → mobile data) gets a
+  new one. Also set a spending limit in your Replicate account as the final safety net.
+- Optional environment variables: `RATE_LIMIT` (default 10), `RATE_LIMIT_HOURS` (default 5),
+  `GLOBAL_DAILY_LIMIT` (default 300), `RATE_LIMIT_SALT`.
 
 The prompt names how many heads the detector found and asks for exactly that many hats. Image models don't
 always obey; if a picture comes out wrong, ↻ Again gives a new attempt.
