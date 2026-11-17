@@ -261,7 +261,8 @@ async function watermark(src) {
   g.drawImage(img, 0, 0);
 
   const s = Math.min(W, H);
-  const q = Math.round(Math.max(56, s * 0.1));           // QR size
+  // QR size: whole pixels per module (the code is 29×29 modules) and at least 3 px each, so phones can scan it
+  const q = 29 * Math.max(3, Math.round(s * 0.1 / 29));
   const pad = Math.round(q * 0.14), margin = Math.round(s * 0.03);
   const big = Math.round(q * 0.34), small = Math.round(q * 0.15);
   const font = "Inter, -apple-system, system-ui, sans-serif";
