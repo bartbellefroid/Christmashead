@@ -13,15 +13,15 @@ const MODEL_URL = "https://api.replicate.com/v1/models/black-forest-labs/flux-2-
 const PREDICTION_URL = "https://api.replicate.com/v1/predictions/";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 
+// Ways to wear the hat. All of them stay above the eyes, so the face itself is never covered or changed.
 const HAT_IDEAS = [
-  "tilted and sliding down over one eye",
-  "far too big and flopping down over one ear",
-  "comically tiny and perched on the very top",
-  "extremely tall and wobbly like a tower",
-  "worn backwards with the pom-pom dangling behind",
-  "jauntily cocked to one side with a jingle bell instead of a pom-pom",
-  "with a second tiny Santa hat stacked on its tip",
-  "with an absurdly long tail that curls around the head",
+  "tilted far to one side at a cheeky angle",
+  "slightly too big, slipping down to just above the eyebrows",
+  "comically tiny and perched on the very top of the head",
+  "extra tall and floppy, bending over to one side",
+  "worn backwards with the pom-pom dangling behind the head",
+  "cocked to one side with a little jingle bell instead of a pom-pom",
+  "with an extra long tail hanging down behind the head",
 ];
 
 function shuffle(a) {
@@ -64,22 +64,30 @@ function normalise(subjects) {
   return clean;
 }
 
+function totalHeads(subjects) {
+  return Object.values(subjects).reduce((sum, n) => sum + n, 0);
+}
+
 function buildPrompt(raw) {
   const subjects = normalise(raw);
   const ideas = shuffle([...HAT_IDEAS]).slice(0, 3);
   const who = describe(subjects);
+  const n = totalHeads(subjects);
   const kinds = Object.keys(subjects);
   const hasPeople = kinds.includes("person");
   const hasAnimals = kinds.some(k => k !== "person");
   return [
-    "Add a red Santa Christmas hat with white fur trim and a pom-pom to every head in this photo. Change nothing else.",
-    who ? `The photo shows exactly ${who}; each of them gets one hat.` : "",
+    "Add a red Santa Christmas hat with white fur trim and a pom-pom on top of each head in this photo. Change nothing else.",
+    who ? `The photo shows exactly ${who}, so add exactly ${NUMBERS[n] || n} Santa ${n === 1 ? "hat" : "hats"} in total: one hat per head, never more.`
+        : "Exactly one hat per head, never more.",
+    "Only on heads: no hats on backs, tails, bodies, objects or the background, and no second hat on any head.",
+    "Each hat sits on top of the head, above the eyes: it must not cover the eyes or any part of the face.",
     "Keep every face exactly the same as in the original photo: same face shape, eyes, expression, mouth,",
-    "skin, fur, colours and identity, pixel for pixel. Do not retouch, stylise, warp or redraw any face.",
+    "skin, fur, colours and identity. Do not retouch, stylise, warp or redraw any face.",
     hasAnimals ? "Animals stay exactly the same animals, with their own unchanged heads." : "",
     who && !hasPeople ? "There are no people in this photo: do not add any human face or human features." : "",
     "Do not add any extra heads, faces, people or animals.",
-    "Make the hats funny through how they are worn, each one differently,",
+    "Make it funny only through how each hat is worn, each one differently,",
     `for example: ${ideas.join("; ")}.`,
     "The hats sit naturally on the heads with matching lighting and shadows.",
     "Keep the background, the bodies, the clothing and the photographic style unchanged.",
