@@ -248,6 +248,63 @@ async function findHeads(src) {
   return detectHeads(src);
 }
 
+// ---------- watermark: small "Mutsify" badge with a QR code, bottom left ----------
+const loadImage = src => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
+let qrImage = null;
+
+async function watermark(src) {
+  const [img, qr] = await Promise.all([loadImage(src), qrImage ??= loadImage("assets/qr.png")]);
+  try { await document.fonts.load("700 40px Inter"); } catch {}
+  const W = img.naturalWidth, H = img.naturalHeight, c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const g = c.getContext("2d");
+  g.drawImage(img, 0, 0);
+
+  const s = Math.min(W, H);
+  const q = Math.round(Math.max(56, s * 0.1));           // QR size
+  const pad = Math.round(q * 0.14), margin = Math.round(s * 0.03);
+  const big = Math.round(q * 0.34), small = Math.round(q * 0.15);
+  const font = "Inter, -apple-system, system-ui, sans-serif";
+  g.font = `700 ${big}px ${font}`; const w1 = g.measureText("Mutsify").width;
+  g.font = `500 ${small}px ${font}`; const w2 = g.measureText("mutsify.netlify.app").width;
+  const bw = pad + q + pad * 1.2 + Math.max(w1, w2) + pad * 1.4, bh = q + pad * 2;
+  const x = margin, y = H - margin - bh;
+
+  g.save();
+  g.shadowColor = "rgba(0,0,0,.25)"; g.shadowBlur = pad * 1.5; g.shadowOffsetY = pad * .3;
+  g.fillStyle = "rgba(255,255,255,.9)";
+  g.beginPath(); g.roundRect(x, y, bw, bh, pad * 1.3); g.fill();
+  g.restore();
+  g.imageSmoothingEnabled = false;                      // keep the QR modules crisp
+  g.drawImage(qr, x + pad, y + pad, q, q);
+  g.imageSmoothingEnabled = true;
+  const tx = x + pad + q + pad * 1.2;
+  g.fillStyle = "#1f3550"; g.textBaseline = "alphabetic";
+  g.font = `700 ${big}px ${font}`; g.fillText("Mutsify", tx, y + pad + q * 0.52);
+  g.fillStyle = "rgba(31,53,80,.72)";
+  g.font = `500 ${small}px ${font}`; g.fillText("mutsify.netlify.app", tx, y + pad + q * 0.52 + small * 1.6);
+
+  return new Promise(res => c.toBlob(res, "image/jpeg", 0.92));
+}
+
+// ---------- saving: straight to the photo library on phones, a download elsewhere ----------
+let resultFile = null;
+
+async function savePhoto() {
+  if (!resultFile) return;
+  const phone = matchMedia("(pointer: coarse)").matches;
+  if (phone && navigator.canShare?.({ files: [resultFile] })) {
+    try {
+      // Opens the share sheet: "Save Image" puts it in Photos (iPhone) / Gallery (Android).
+      await navigator.share({ files: [resultFile], title: "Mutsify" });
+      return;
+    } catch (err) {
+      if (err.name === "AbortError") return;            // the visitor closed the sheet
+    }
+  }
+  saveBlob(resultFile, resultFile.name);
+}
+
 function saveBlob(blob, name) {
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 3000);
@@ -431,6 +488,8 @@ let busy = false;
 async function makeFunny() {
   if (!photo || busy) return;
   busy = true; $("again").disabled = true; $("save").disabled = true; $("again").classList.add("spin");
+  resultFile = null;
+  if ($("funnyImg").src.startsWith("blob:")) URL.revokeObjectURL($("funnyImg").src);
   const state = startEating();
   let ok = false, message = null, remaining = null;
   try {
@@ -451,7 +510,9 @@ async function makeFunny() {
       else if (r.status === "failed" || r.status === "canceled") throw new Error(r.error || "Generation failed");
       else if (Date.now() - t0 > 180000) throw new Error("This took too long");
     }
-    await new Promise((res, rej) => { const img = $("funnyImg"); img.onload = res; img.onerror = rej; img.src = result; });
+    const marked = await watermark(result);
+    resultFile = new File([marked], `mutsify-${Date.now()}.jpg`, { type: "image/jpeg" });
+    await new Promise((res, rej) => { const img = $("funnyImg"); img.onload = res; img.onerror = rej; img.src = URL.createObjectURL(marked); });
     ok = true;
   } catch (err) {
     console.error(err);
@@ -471,7 +532,7 @@ async function makeFunny() {
   }
 }
 $("again").onclick = makeFunny;
-$("save").onclick = async () => saveBlob(await (await fetch($("funnyImg").src)).blob(), "mutsify.jpg");
+$("save").onclick = savePhoto;
 $("choose").onclick = () => $("file").click();
 
 // ---------- loading a photo ----------
