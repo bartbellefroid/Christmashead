@@ -5,196 +5,156 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Mutsify</title>
 <meta name="description" content="Drop a photo and get a funny Christmas version, with a Santa hat on every head.">
+<link rel="icon" href="assets/icon.jpg">
+<link rel="apple-touch-icon" href="assets/icon.jpg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Chewy&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Parisienne&display=swap" rel="stylesheet">
 <style>
-  /* ============ shared layout ============ */
+  :root {
+    --tint: 47, 106, 160;           /* changed by the colour dots */
+    --glass: rgba(255,255,255,.16);
+    --edge: rgba(255,255,255,.38);
+    --ink: #fff;
+  }
   * { box-sizing: border-box; }
   html, body { margin: 0; min-height: 100%; }
   body {
-    font-family: var(--font); color: var(--ink); background: var(--bg);
-    overflow-x: hidden; transition: color .4s;
+    font-family: -apple-system, "SF Pro Display", "Inter", system-ui, sans-serif; color: var(--ink);
+    background: #9cc3dc; overflow-x: hidden; -webkit-font-smoothing: antialiased;
   }
-  .deco { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 0; }
-  .flake { position: absolute; top: -20px; animation: fall linear infinite; }
-  @keyframes fall { to { transform: translate3d(var(--drift), 110vh, 0) rotate(var(--spin)); } }
-  main { position: relative; z-index: 1; max-width: 1040px; margin: 0 auto; padding: 28px 16px 120px; text-align: center; }
+  /* soft, blurry photo of fluffy reindeer behind everything */
+  .bg { position: fixed; inset: -24px; z-index: 0; background: url("assets/background.jpg") center / cover no-repeat; filter: blur(5px) saturate(1.05); }
+  .tint { position: fixed; inset: 0; z-index: 0; background: rgba(var(--tint), .28); transition: background .6s; }
 
-  .logo { position: relative; display: inline-block; margin: 26px 0 4px; font-size: clamp(3.2rem, 13vw, 7rem); line-height: 1; letter-spacing: -0.02em; }
-  .logo .hat { position: absolute; width: .62em; left: -.16em; top: -.42em; transform-origin: 70% 90%; animation: wiggle 2.6s ease-in-out infinite; }
-  @keyframes wiggle { 0%,100% { transform: rotate(-18deg); } 50% { transform: rotate(-6deg) translateY(-3px); } }
-  .sub { margin: 6px 0 26px; font-size: 1.25rem; opacity: .85; }
+  main { position: relative; z-index: 1; max-width: 720px; margin: 0 auto; padding: 44px 16px 56px; text-align: center; }
+  .icon { width: 72px; height: 72px; border-radius: 18px; display: block; margin: 0 auto 14px; box-shadow: 0 8px 22px rgba(0,0,0,.18); animation: nod 3.5s ease-in-out infinite; }
+  @keyframes nod { 50% { transform: rotate(-5deg) translateY(-2px); } }
+  h1 { margin: 0 0 28px; font-size: clamp(1.8rem, 5vw, 2.3rem); font-weight: 700; letter-spacing: -.01em; text-shadow: 0 2px 14px rgba(0,0,0,.12); }
+  h1 sup { font-size: .45em; font-weight: 600; vertical-align: super; }
 
-  .upload {
-    display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
-    width: min(420px, 100%); aspect-ratio: 1.6; cursor: pointer; font-size: 1.5rem;
-    transition: transform .2s cubic-bezier(.34,1.56,.64,1);
+  .glass {
+    background: var(--glass); border: 1px solid var(--edge); border-radius: 30px;
+    backdrop-filter: blur(18px) saturate(1.2); -webkit-backdrop-filter: blur(18px) saturate(1.2);
+    box-shadow: 0 10px 40px rgba(0,0,0,.10), inset 0 1px 0 rgba(255,255,255,.35);
   }
-  .upload:hover, .upload.over { transform: scale(1.04) rotate(-1deg); }
-  .upload .icon { font-size: 3.4rem; animation: bob 1.8s ease-in-out infinite; }
-  @keyframes bob { 50% { transform: translateY(-8px) rotate(6deg); } }
-  .upload input { display: none; }
-  body.has-photo .upload { display: none; }
 
-  .results { display: none; max-width: 640px; margin: 8px auto 0; text-align: left; }
-  body.has-photo .results { display: grid; }
+  .stage { padding: 14px; }
+  .drop {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+    min-height: 300px; border-radius: 20px; cursor: pointer; font-size: 1.35rem; font-weight: 600;
+    transition: background .25s;
+  }
+  .drop:hover, .drop.over { background: rgba(255,255,255,.12); }
+  .drop svg { width: 64px; height: 64px; opacity: .92; transition: transform .3s cubic-bezier(.34,1.56,.64,1); }
+  .drop:hover svg, .drop.over svg { transform: scale(1.12) rotate(-6deg); }
+  .drop small { font-size: .9rem; font-weight: 400; opacity: .8; }
+  .drop input { display: none; }
+  body.has-photo .drop { display: none; }
 
-  .card { position: relative; padding: 16px; }
-  .card h2 { margin: 0 0 12px; font-size: 1.8rem; display: flex; align-items: center; gap: 10px; }
-  .frame { position: relative; border-radius: 16px; background: var(--bite-bg); line-height: 0; }
-  .frame > canvas, .frame > img { display: block; width: 100%; height: auto; border-radius: 16px; }
+  .frame { position: relative; display: none; border-radius: 20px; line-height: 0;
+    background: radial-gradient(circle, rgba(255,255,255,.55) 1.2px, transparent 1.8px) 0 0 / 22px 22px, rgba(255,255,255,.12); }
+  body.has-photo .frame { display: block; }
+  .frame > img, .frame > canvas { display: block; width: 100%; height: auto; border-radius: 20px; }
   .frame > .layer { position: absolute; inset: 0; width: 100%; height: 100%; }
-  #funnyImg { opacity: 0; transform: scale(.85); transition: opacity .5s, transform .6s cubic-bezier(.34,1.56,.64,1); }
+  #funnyImg { opacity: 0; transform: scale(.94); transition: opacity .6s, transform .7s cubic-bezier(.34,1.56,.64,1); }
   #funnyImg.show { opacity: 1; transform: none; }
 
-  .actions { display: flex; gap: 10px; margin-top: 14px; }
-  .btn {
-    font: inherit; font-size: 1.15rem; cursor: pointer; border: none; padding: 10px 18px;
-    display: inline-flex; align-items: center; gap: 8px;
-    transition: transform .15s cubic-bezier(.34,1.56,.64,1), filter .15s;
+  .toolbar { display: inline-flex; gap: 6px; margin-top: 28px; padding: 8px 12px; border-radius: 999px; }
+  .tool {
+    width: 48px; height: 44px; border: 0; border-radius: 999px; background: transparent; color: #fff; cursor: pointer;
+    display: grid; place-items: center; transition: background .2s, transform .2s cubic-bezier(.34,1.56,.64,1), opacity .2s;
   }
-  .btn:hover:not(:disabled) { transform: translateY(-2px) scale(1.05); }
-  .btn:active:not(:disabled) { transform: scale(.95); }
-  .btn:disabled { opacity: .45; cursor: default; }
+  .tool svg { width: 22px; height: 22px; }
+  .tool:hover:not(:disabled) { background: rgba(255,255,255,.22); transform: translateY(-1px); }
+  .tool:active:not(:disabled) { transform: scale(.92); }
+  .tool:disabled { opacity: .38; cursor: default; }
+  .tool.spin svg { animation: spin 1.4s linear infinite; }
+  @keyframes spin { to { transform: rotate(-360deg); } }
 
-  .busy {
-    position: absolute; inset: 0; display: grid; place-items: center; line-height: 1.2; text-align: center;
-    font-size: 1.3rem; border-radius: 16px; background: rgba(0,0,0,.35); color: #fff; text-shadow: 0 2px 6px rgba(0,0,0,.5);
-  }
-  .busy span { display: inline-block; animation: bob 1s ease-in-out infinite; font-size: 2.4rem; }
-  .busy[hidden] { display: none; }
+  .dots { display: flex; justify-content: center; gap: 14px; margin-top: 30px; }
+  .dot { width: 20px; height: 20px; border-radius: 50%; border: 0; padding: 0; cursor: pointer; background: var(--c);
+    box-shadow: 0 2px 6px rgba(0,0,0,.15); transition: transform .2s cubic-bezier(.34,1.56,.64,1); }
+  .dot:hover { transform: scale(1.18); }
+  .dot.on { box-shadow: 0 0 0 3px rgba(255,255,255,.75), 0 2px 6px rgba(0,0,0,.15); }
+  .tagline { font-family: "Parisienne", cursive; font-size: 1.7rem; margin-top: 14px; opacity: .95; text-shadow: 0 1px 10px rgba(0,0,0,.12); }
 
-  .newphoto { margin-top: 30px; display: none; }
-  body.has-photo .newphoto { display: inline-flex; }
+  /* the fluffy reindeer that eats your photo */
+  #reindeer { position: absolute; z-index: 5; pointer-events: none; display: none; }
+  #reindeer img { width: 100%; height: 100%; display: block; filter: drop-shadow(0 10px 10px rgba(0,0,0,.28)); transform-origin: 50% 100%; }
+  #reindeer.left img { transform: scaleX(-1); }
+  #reindeer.walking img { animation: hop .34s ease-in-out infinite alternate; }
+  #reindeer.left.walking img { animation-name: hop-left; }
+  @keyframes hop { from { transform: translateY(0) rotate(-2deg); } to { transform: translateY(-7%) rotate(3deg); } }
+  @keyframes hop-left { from { transform: scaleX(-1) translateY(0) rotate(-2deg); } to { transform: scaleX(-1) translateY(-7%) rotate(3deg); } }
+  #reindeer.chomp img { animation: munch .24s ease-in-out 2; }
+  #reindeer.left.chomp img { animation-name: munch-left; }
+  @keyframes munch { 50% { transform: scale(1.04, .94) rotate(4deg); } }
+  @keyframes munch-left { 0%, 100% { transform: scaleX(-1); } 50% { transform: scaleX(-1) scale(1.04, .94) rotate(4deg); } }
 
-  /* reindeer */
-  #reindeer { position: absolute; z-index: 5; pointer-events: none; display: none; filter: drop-shadow(0 6px 6px rgba(0,0,0,.35)); }
-  #reindeer svg { width: 100%; height: 100%; overflow: visible; transition: transform .2s; }
-  #reindeer.left svg { transform: scaleX(-1); }
-  #reindeer .leg { transform-box: fill-box; transform-origin: 50% 0; }
-  #reindeer.walking .leg.a { animation: step .36s ease-in-out infinite alternate; }
-  #reindeer.walking .leg.b { animation: step .36s ease-in-out infinite alternate-reverse; }
-  @keyframes step { from { transform: rotate(-16deg); } to { transform: rotate(16deg); } }
-  #reindeer .jaw { transform-box: view-box; transform-origin: 180px 66px; }
-  #reindeer.chomp .jaw { animation: chomp .26s ease-in-out 2; }
-  #reindeer.chomp .head { animation: headbob .26s ease-in-out 2; transform-box: view-box; transform-origin: 160px 80px; }
-  @keyframes chomp { 50% { transform: rotate(24deg); } }
-  @keyframes headbob { 50% { transform: rotate(7deg); } }
-  #reindeer .nose { animation: glow 1.2s ease-in-out infinite; }
-  @keyframes glow { 50% { filter: drop-shadow(0 0 7px #ff3030) brightness(1.3); } }
   .bubble {
-    position: absolute; z-index: 6; padding: 6px 12px; border-radius: 16px; background: #fff; color: #222;
-    font-size: 1.05rem; line-height: 1.2; white-space: nowrap; box-shadow: 0 4px 12px rgba(0,0,0,.25);
-    transform: translate(-50%, -100%) scale(0); animation: pop .25s cubic-bezier(.34,1.56,.64,1) forwards;
+    position: absolute; z-index: 6; padding: 7px 13px; border-radius: 16px; line-height: 1.2; white-space: nowrap;
+    background: rgba(255,255,255,.9); color: #1f3550; font-size: 1rem; font-weight: 600;
+    box-shadow: 0 6px 18px rgba(0,0,0,.15); transform: translate(-50%, -100%) scale(0);
+    animation: pop .28s cubic-bezier(.34,1.56,.64,1) forwards;
   }
   @keyframes pop { to { transform: translate(-50%, -100%) scale(1); } }
 
-  .toast {
-    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 20;
-    background: #222; color: #fff; padding: 10px 16px; border-radius: 12px; font-size: 1rem; display: none;
-  }
+  .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 20; padding: 12px 18px;
+    border-radius: 16px; font-size: .98rem; display: none; color: #fff; }
   .toast.show { display: block; }
 
-  /* ============ Gingerbread design ============ */
-  [data-design="ginger"] {
-    --font: "Chewy", system-ui, sans-serif; --ink: #4a2511;
-    --bg: radial-gradient(circle, #f2cf9e 2px, transparent 2.5px) 0 0 / 26px 26px, #fbe6c4;
-    --bite-bg: radial-gradient(circle, #ff5a7a 2px, transparent 2.5px) 0 0 / 18px 18px,
-               radial-gradient(circle, #6ee0a0 2px, transparent 2.5px) 9px 9px / 18px 18px, #5a2d12;
+  @media (max-width: 520px) {
+    main { padding-top: 32px; }
+    .drop { min-height: 230px; }
+    .tagline { font-size: 1.45rem; }
   }
-  [data-design="ginger"] .logo { color: #a0522d; text-shadow: 0 4px 0 #fff, 0 8px 0 #6b3416, 0 14px 18px rgba(0,0,0,.25); }
-  [data-design="ginger"] .upload, [data-design="ginger"] .card {
-    background: #b8692f; color: #fff7ea; border-radius: 34px;
-    border: 7px dashed #fff7ea; outline: 8px solid #b8692f; box-shadow: 0 14px 0 8px #7a3c15, 0 22px 30px rgba(0,0,0,.25);
-  }
-  [data-design="ginger"] .upload { margin: 14px 0; }
-  [data-design="ginger"] .card { transform: rotate(-.6deg); }
-  [data-design="ginger"] .card h2 { color: #fff7ea; text-shadow: 0 3px 0 #7a3c15; }
-  [data-design="ginger"] .frame { border: 5px solid #fff7ea; }
-  [data-design="ginger"] .btn {
-    border-radius: 22px 22px 16px 16px; color: #fff; background: #e8344e; text-shadow: 0 2px 0 rgba(0,0,0,.2);
-    box-shadow: inset 0 -6px 0 rgba(0,0,0,.18), inset 0 6px 0 rgba(255,255,255,.35), 0 5px 0 #7a3c15;
-  }
-  [data-design="ginger"] .btn.alt { background: #2fb36b; }
-  [data-design="ginger"] .newphoto { background: #f5b82e; }
-  [data-design="ginger"] .flake { width: 14px; height: 5px; border-radius: 3px; }
-  [data-design="ginger"] .flake:nth-child(4n) { background: #e8344e; }
-  [data-design="ginger"] .flake:nth-child(4n+1) { background: #2fb36b; }
-  [data-design="ginger"] .flake:nth-child(4n+2) { background: #f5b82e; }
-  [data-design="ginger"] .flake:nth-child(4n+3) { background: #fff; }
-
-  @media (prefers-reduced-motion: reduce) {
-    .flake, .logo .hat, .upload .icon { animation: none !important; }
-    .flake { display: none; }
-  }
+  @media (prefers-reduced-motion: reduce) { .icon { animation: none; } }
 </style>
 </head>
-<body data-design="ginger">
-<div class="deco" id="deco"></div>
+<body>
+<div class="bg"></div>
+<div class="tint"></div>
 
 <main>
-  <h1 class="logo">
-    <svg class="hat" viewBox="0 0 100 100" aria-hidden="true">
-      <path d="M14 78 Q30 20 70 12 Q88 10 92 30 Q80 22 70 30 Q60 50 62 78 Z" fill="#e8203a"/>
-      <circle cx="92" cy="32" r="9" fill="#fff"/>
-      <rect x="6" y="70" width="64" height="18" rx="9" fill="#fff"/>
-    </svg>Mutsify
-  </h1>
-  <p class="sub">Drop a photo. Get a funny Christmas version. 🎄</p>
+  <img class="icon" src="assets/icon.jpg" alt="">
+  <h1>Mutsify<sup>™</sup></h1>
 
-  <label class="upload" id="drop">
-    <input type="file" id="file" accept="image/*">
-    <span class="icon">📸</span>
-    <span>Choose a photo</span>
-  </label>
+  <section class="stage glass">
+    <label class="drop" id="drop">
+      <input type="file" id="file" accept="image/*">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="9" cy="9" r="2"/><path d="m21 15-4.5-4.5L6 21"/>
+      </svg>
+      Drop a photo
+      <small>or click to choose one</small>
+    </label>
 
-  <section class="results">
-    <article class="card">
-      <h2>🤪 Funny</h2>
-      <div class="frame" id="funnyFrame">
-        <img id="funnyImg" alt="Funny AI version of your photo">
-        <canvas id="eat" class="layer"></canvas>
-        <canvas id="fx" class="layer"></canvas>
-        <div id="reindeer" aria-hidden="true">
-          <svg viewBox="0 -12 220 182">
-            <g class="leg a"><rect x="52" y="112" width="12" height="46" rx="6" fill="#6d3f1d"/><rect x="51" y="150" width="14" height="9" rx="3" fill="#2b1a0e"/></g>
-            <g class="leg b"><rect x="72" y="114" width="12" height="44" rx="6" fill="#8a5428"/><rect x="71" y="150" width="14" height="9" rx="3" fill="#2b1a0e"/></g>
-            <g class="leg b"><rect x="112" y="114" width="12" height="44" rx="6" fill="#6d3f1d"/><rect x="111" y="150" width="14" height="9" rx="3" fill="#2b1a0e"/></g>
-            <g class="leg a"><rect x="132" y="112" width="12" height="46" rx="6" fill="#8a5428"/><rect x="131" y="150" width="14" height="9" rx="3" fill="#2b1a0e"/></g>
-            <circle cx="38" cy="86" r="11" fill="#f3e3c8"/>
-            <ellipse cx="95" cy="98" rx="60" ry="34" fill="#9a5f2c"/>
-            <ellipse cx="98" cy="112" rx="42" ry="15" fill="#c48a52"/>
-            <path d="M128 92 Q146 66 156 46 L180 54 Q170 86 152 110 Z" fill="#9a5f2c"/>
-            <g class="head">
-              <path d="M160 30 Q150 10 136 2 M150 17 Q160 8 157 -2 M176 28 Q182 8 198 0 M184 14 Q176 5 178 -5" stroke="#e2bd85" stroke-width="6" stroke-linecap="round" fill="none"/>
-              <ellipse cx="150" cy="38" rx="11" ry="5" transform="rotate(-32 150 38)" fill="#7a4520"/>
-              <ellipse cx="170" cy="48" rx="25" ry="21" fill="#9a5f2c"/>
-              <ellipse cx="192" cy="58" rx="18" ry="13" fill="#c48a52"/>
-              <path class="jaw" d="M176 64 Q194 82 207 66 Q194 72 178 64 Z" fill="#5a3216"/>
-              <circle class="nose" cx="207" cy="54" r="8.5" fill="#ff2a2a"/>
-              <circle cx="204.5" cy="51.5" r="2.4" fill="#fff" opacity=".7"/>
-              <circle cx="172" cy="42" r="4.6" fill="#1d120a"/>
-              <circle cx="173.6" cy="40.4" r="1.6" fill="#fff"/>
-            </g>
-            <path d="M140 76 Q156 88 174 76 L178 88 Q156 102 136 88 Z" fill="#e8203a"/>
-            <path d="M146 82 L150 94 M158 84 L160 97 M168 81 L171 93" stroke="#fff" stroke-width="3"/>
-            <path d="M142 86 L136 112 L148 112 L152 90 Z" fill="#e8203a"/>
-          </svg>
-        </div>
-      </div>
-      <div class="actions">
-        <button class="btn" id="funnyAgain" aria-label="Make another funny version" disabled>🎲 Again</button>
-        <button class="btn alt" id="funnySave" aria-label="Download funny version" disabled>⬇ Save</button>
-      </div>
-    </article>
+    <div class="frame" id="frame">
+      <img id="funnyImg" alt="Funny Christmas version of your photo">
+      <canvas id="eat" class="layer"></canvas>
+      <canvas id="fx" class="layer"></canvas>
+      <div id="reindeer" aria-hidden="true"><img src="assets/reindeer.webp" alt=""></div>
+    </div>
   </section>
 
-  <button class="btn newphoto" id="newPhoto">📸 New photo</button>
+  <nav class="toolbar glass" aria-label="Actions">
+    <button class="tool" id="choose" title="New photo" aria-label="New photo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+    <button class="tool" id="again" title="Again" aria-label="Make another version" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+    </button>
+    <button class="tool" id="save" title="Save" aria-label="Save image" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11"/><path d="m7 10 5 5 5-5"/><path d="M5 20h14"/></svg>
+    </button>
+  </nav>
+
+  <div class="dots" id="dots"></div>
+  <div class="tagline" id="tagline"></div>
 </main>
 
-<div class="toast" id="toast"></div>
-
+<div class="toast glass" id="toast"></div>
 
 <script type="module">
 import { loadDetectors, detectHeads } from "./engine.js";
@@ -205,6 +165,33 @@ const rand = (a, b) => a + Math.random() * (b - a);
 const pick = a => a[Math.floor(Math.random() * a.length)];
 
 let photo = null, heads = [], detectReady = null;
+
+function toast(msg) {
+  const t = $("toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove("show"), 4500);
+}
+
+// ---------- colour dots ----------
+const TINTS = [
+  { c: "47, 106, 160", name: "Frosty Blue • Snowdeer" },
+  { c: "176, 50, 66", name: "Cranberry • Rudolph" },
+  { c: "46, 122, 88", name: "Pine • Mistletoe" },
+  { c: "190, 122, 62", name: "Gingerbread • Cookie" },
+  { c: "142, 104, 184", name: "Sugarplum • Dancer" },
+];
+function setTint(i) {
+  document.documentElement.style.setProperty("--tint", TINTS[i].c);
+  $("tagline").textContent = TINTS[i].name;
+  [...$("dots").children].forEach((d, k) => d.classList.toggle("on", k === i));
+  try { localStorage.setItem("mutsify-tint", i); } catch {}
+}
+TINTS.forEach((t, i) => {
+  const b = document.createElement("button");
+  b.className = "dot"; b.style.setProperty("--c", `rgb(${t.c})`); b.setAttribute("aria-label", t.name);
+  b.onclick = () => setTint(i);
+  $("dots").appendChild(b);
+});
+{ let i = 0; try { i = +localStorage.getItem("mutsify-tint") || 0; } catch {} setTint(TINTS[i] ? i : 0); }
 
 // ---------- face finder in a background thread (falls back to this page if workers fail) ----------
 let worker = null, jobs = 0;
@@ -225,32 +212,16 @@ async function findHeads(src) {
   return detectHeads(src);
 }
 
-function toast(msg) {
-  const t = $("toast"); t.textContent = msg; t.classList.add("show");
-  clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove("show"), 4500);
-}
-
-// falling sprinkles
-for (let i = 0; i < 34; i++) {
-  const f = document.createElement("i");
-  f.className = "flake";
-  f.style.left = `${rand(0, 100)}vw`;
-  f.style.animationDuration = `${rand(9, 20)}s`;
-  f.style.animationDelay = `${-rand(0, 20)}s`;
-  f.style.setProperty("--drift", `${rand(-12, 12)}vw`);
-  f.style.setProperty("--spin", `${rand(-540, 540)}deg`);
-  $("deco").appendChild(f);
-}
-
 function saveBlob(blob, name) {
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 3000);
 }
 
-// ---------- reindeer that eats your photo while the AI works ----------
-const frame = $("funnyFrame"), eat = $("eat"), fx = $("fx"), deer = $("reindeer");
+// ---------- the fluffy reindeer eats your photo while the AI works ----------
+const frame = $("frame"), eat = $("eat"), fx = $("fx"), deer = $("reindeer");
 const ectx = eat.getContext("2d", { willReadFrequently: true }), fctx = fx.getContext("2d");
-const MOUTH = { x: 200 / 220, y: (68 + 12) / 182 };   // mouth position inside the SVG box
+const DEER_RATIO = 555 / 480;                 // height / width of assets/reindeer.webp
+const MOUTH = { x: 0.885, y: 0.415 };          // where its mouth is inside that image
 const NOMS = ["nom nom", "*crunch*", "mmm, pixels", "yum!", "*munch*", "tasty!", "chomp!", "so festive 😋"];
 
 function sizeLayers() {
@@ -273,9 +244,10 @@ function startEating() {
   eat.style.transition = ""; eat.style.opacity = 1;
   $("funnyImg").classList.remove("show");
 
-  const dw = Math.max(110, Math.min(230, W * 0.42)), dh = dw * 182 / 220;
+  const dw = Math.max(110, Math.min(220, W * 0.36)), dh = dw * DEER_RATIO;
   deer.style.width = `${dw}px`; deer.style.height = `${dh}px`; deer.style.display = "block";
-  const state = { done: false, crumbs: [], pos: { x: -dw * 0.4, y: H * 0.3 }, left: false, W, H, dw, dh, alive: true };
+  const state = { done: false, crumbs: [], pos: { x: -dw * 0.3, y: H * 0.3 }, left: false, W, H, dw, dh, alive: true };
+  const bubbleY = () => state.pos.y - dh * 0.5;
 
   const place = () => {
     const mx = state.left ? 1 - MOUTH.x : MOUTH.x;
@@ -284,8 +256,7 @@ function startEating() {
   };
   place();
 
-  // crumbs animation loop
-  const tick = () => {
+  const tick = () => {                          // falling crumbs
     if (!state.alive) return;
     fctx.clearRect(0, 0, W, H);
     state.crumbs = state.crumbs.filter(c => c.life > 0);
@@ -310,14 +281,15 @@ function startEating() {
     requestAnimationFrame(step);
   });
 
+  const chomp = () => { deer.classList.remove("chomp"); void deer.offsetWidth; deer.classList.add("chomp"); };
+
   const bite = (x, y, r) => {
-    // sample the photo colour for the crumbs before it is gone
     const sx = Math.min(eat.width - 1, Math.max(0, x * eat.width / W)) | 0, sy = Math.min(eat.height - 1, Math.max(0, y * eat.height / H)) | 0;
-    const px = ectx.getImageData(sx, sy, 1, 1).data;
+    const px = ectx.getImageData(sx, sy, 1, 1).data;      // crumbs in the photo's own colour
     const color = px[3] ? `rgb(${px[0]},${px[1]},${px[2]})` : "#c48a52";
     ectx.globalCompositeOperation = "destination-out";
     ectx.beginPath(); ectx.arc(x, y, r, 0, Math.PI * 2); ectx.fill();
-    for (let i = 0; i < 6; i++) {               // scalloped, tooth-mark edge
+    for (let i = 0; i < 6; i++) {                          // scalloped, tooth-mark edge
       const a = rand(0, Math.PI * 2);
       ectx.beginPath(); ectx.arc(x + Math.cos(a) * r * 0.92, y + Math.sin(a) * r * 0.92, r * rand(0.25, 0.4), 0, Math.PI * 2); ectx.fill();
     }
@@ -326,8 +298,7 @@ function startEating() {
   };
 
   state.run = (async () => {
-    const r = Math.max(18, Math.min(W, H) * 0.1), step = r * 1.35;
-    const rows = [];
+    const r = Math.max(18, Math.min(W, H) * 0.1), step = r * 1.35, rows = [];
     for (let y = r * 0.6, i = 0; y < H; y += step, i++) {
       const row = [];
       for (let x = r * 0.6; x < W; x += step) row.push({ x: x + rand(-r * .2, r * .2), y: y + rand(-r * .2, r * .2) });
@@ -335,24 +306,22 @@ function startEating() {
     }
     const targets = rows.flat();
     await moveTo(targets[0].x, targets[0].y, 1300);
-    if (!state.done) { bubble("Ooh, a photo! 🦌", state.pos.x, state.pos.y - dh * .55, 1500); await sleep(700); }
+    if (!state.done) { bubble("Ooh, a photo! 🦌", state.pos.x, bubbleY(), 1500); await sleep(700); }
     const t0 = performance.now();
     for (const t of targets) {
       if (state.done) break;
       await moveTo(t.x, t.y, 380);
       if (state.done) break;
-      deer.classList.remove("chomp"); void deer.offsetWidth; deer.classList.add("chomp");
-      await sleep(130); bite(t.x, t.y, r);
-      await sleep(260); bite(t.x + rand(-r * .4, r * .4), t.y + rand(-r * .3, r * .3), r * 0.8);
+      chomp();
+      await sleep(120); bite(t.x, t.y, r);
+      await sleep(240); bite(t.x + rand(-r * .4, r * .4), t.y + rand(-r * .3, r * .3), r * 0.8);
       await sleep(150);
-      if (Math.random() < 0.16) bubble(pick(NOMS), state.pos.x, state.pos.y - dh * .55);
-      // eat a bit slower the longer it takes, so the photo lasts
-      await sleep(200 + (performance.now() - t0) / 60);
+      if (Math.random() < 0.16) bubble(pick(NOMS), state.pos.x, bubbleY());
+      await sleep(200 + (performance.now() - t0) / 60);   // slow down over time so the photo lasts
     }
-    while (!state.done) {   // photo finished but the AI isn't: wait politely
-      bubble(pick(["more please? 🥺", "is dessert coming?", "*licks plate*", "still hungry…"]), state.pos.x, state.pos.y - dh * .55, 1500);
-      deer.classList.remove("chomp"); void deer.offsetWidth; deer.classList.add("chomp");
-      await sleep(2200);
+    while (!state.done) {
+      bubble(pick(["more please? 🥺", "is dessert coming?", "*licks plate*", "still hungry…"]), state.pos.x, bubbleY(), 1500);
+      chomp(); await sleep(2200);
     }
   })();
   return state;
@@ -361,13 +330,13 @@ function startEating() {
 async function stopEating(state, ok) {
   state.done = true;
   await state.run;
-  const { W, H, dh } = state;
-  bubble(ok ? "*BURP* 🎁" : "oops… I'm stuffed 🤢", state.pos.x, state.pos.y - dh * .55, 1600);
+  const { W, H } = state;
+  bubble(ok ? "*BURP* 🎁" : "oops… I'm stuffed 🤢", state.pos.x, state.pos.y - state.dh * .5, 1600);
   await sleep(700);
   if (ok) {
     $("funnyImg").classList.add("show");
     eat.style.transition = "opacity .6s"; eat.style.opacity = 0;
-    confetti(W, H);
+    sparkle(W, H);
   } else {
     ectx.globalCompositeOperation = "source-over"; ectx.drawImage(photo, 0, 0, W, H);   // give the photo back
   }
@@ -385,17 +354,18 @@ async function stopEating(state, ok) {
   state.alive = false; fctx.clearRect(0, 0, W, H);
 }
 
-function confetti(W, H) {
-  const colors = ["#ff2d55", "#ffd93d", "#3ddc97", "#5b8cff", "#ff8fb8", "#fff"];
-  for (let i = 0; i < 60; i++) {
+function sparkle(W, H) {
+  const marks = ["✦", "❄", "✧", "•"];
+  for (let i = 0; i < 46; i++) {
     const p = document.createElement("i");
-    p.style.cssText = `position:absolute;left:${W / 2}px;top:${H / 2}px;width:9px;height:14px;border-radius:2px;z-index:7;pointer-events:none;background:${pick(colors)}`;
+    p.textContent = pick(marks);
+    p.style.cssText = `position:absolute;left:${W / 2}px;top:${H / 2}px;z-index:7;pointer-events:none;font-style:normal;line-height:1;color:#fff;font-size:${rand(12, 26)}px;text-shadow:0 0 10px rgba(255,255,255,.9)`;
     frame.appendChild(p);
     const a = rand(0, Math.PI * 2), d = rand(80, Math.max(W, H) * 0.7);
     p.animate([
-      { transform: "translate(-50%,-50%) rotate(0)", opacity: 1 },
-      { transform: `translate(${Math.cos(a) * d}px, ${Math.sin(a) * d + 60}px) rotate(${rand(-720, 720)}deg)`, opacity: 0 },
-    ], { duration: rand(900, 1500), easing: "cubic-bezier(.2,.8,.3,1)" }).onfinish = () => p.remove();
+      { transform: "translate(-50%,-50%) scale(.4)", opacity: 1 },
+      { transform: `translate(${Math.cos(a) * d}px, ${Math.sin(a) * d}px) scale(1) rotate(${rand(-180, 180)}deg)`, opacity: 0 },
+    ], { duration: rand(900, 1600), easing: "cubic-bezier(.2,.8,.3,1)" }).onfinish = () => p.remove();
   }
 }
 
@@ -421,10 +391,10 @@ function subjectCounts() {
   return counts;
 }
 
-let funnyBusy = false;
+let busy = false;
 async function makeFunny() {
-  if (!photo || funnyBusy) return;
-  funnyBusy = true; $("funnyAgain").disabled = true; $("funnySave").disabled = true;
+  if (!photo || busy) return;
+  busy = true; $("again").disabled = true; $("save").disabled = true; $("again").classList.add("spin");
   const state = startEating();
   let ok = false;
   try {
@@ -448,19 +418,20 @@ async function makeFunny() {
     ok = true;
   } catch (err) {
     console.error(err);
-    toast(location.protocol === "file:" ? "The funny version needs the Mutsify server 🙈" : "The funny version didn't work, try 🎲 Again");
+    toast(location.protocol === "file:" ? "This needs the Mutsify server 🙈" : "That didn't work — try again ↻");
   } finally {
     await stopEating(state, ok);
-    funnyBusy = false; $("funnyAgain").disabled = false; $("funnySave").disabled = !ok;
+    busy = false; $("again").disabled = false; $("save").disabled = !ok; $("again").classList.remove("spin");
   }
 }
-$("funnyAgain").onclick = makeFunny;
-$("funnySave").onclick = async () => saveBlob(await (await fetch($("funnyImg").src)).blob(), "mutsify-funny.jpg");
+$("again").onclick = makeFunny;
+$("save").onclick = async () => saveBlob(await (await fetch($("funnyImg").src)).blob(), "mutsify.jpg");
+$("choose").onclick = () => $("file").click();
 
 // ---------- loading a photo ----------
 async function loadFile(file) {
   if (!file || !file.type.startsWith("image/")) { toast("That's not a photo 🤔"); return; }
-  if (funnyBusy) { toast("Hang on, the reindeer is still eating 🦌"); return; }
+  if (busy) { toast("Hang on, the reindeer is still eating 🦌"); return; }
   const url = URL.createObjectURL(file), img = new Image();
   img.src = url;
   try { await img.decode(); } catch { toast("Couldn't open that photo"); return; }
@@ -492,10 +463,8 @@ document.addEventListener("paste", e => {
   const item = [...(e.clipboardData?.items || [])].find(i => i.type.startsWith("image/"));
   if (item) loadFile(item.getAsFile());
 });
-$("newPhoto").onclick = () => $("file").click();
 
-// Warm up the face finder while the visitor is still picking a photo: starting the models
-// briefly freezes the page, and we'd rather that not happen while the reindeer is eating.
+// Warm up the face finder while the visitor is still picking a photo.
 const warmUp = () => (worker ? ask({ type: "warm" }) : loadDetectors()).catch(() => {});
 if ("requestIdleCallback" in window) requestIdleCallback(warmUp, { timeout: 2500 }); else setTimeout(warmUp, 1200);
 </script>
