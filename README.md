@@ -13,6 +13,12 @@ a thin-line icon toolbar (new photo · again · save) and colour dots that tint 
 (Frosty Blue, Cranberry, Pine, Gingerbread, Sugarplum). The images in `assets/` were generated with the same
 Replicate model; the photo-eating reindeer was generated on a green screen and cut out.
 
+## Saving
+
+The result gets a small badge in the bottom-left corner: a QR code to https://mutsify.netlify.app and the word
+"Mutsify" (`assets/qr.png`, drawn onto the photo in the browser). On phones, Save opens the share sheet so the
+picture can go straight into Photos / the gallery; on computers it downloads as a JPEG.
+
 ## How it works
 
 - `index.html` — the page (upload, reindeer animation, toolbar, colour dots).
