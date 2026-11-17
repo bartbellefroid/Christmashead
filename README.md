@@ -19,6 +19,11 @@ The result gets a small badge in the bottom-left corner: a QR code to https://mu
 "Mutsify" (`assets/qr.png`, drawn onto the photo in the browser). On phones, Save opens the share sheet so the
 picture can go straight into Photos / the gallery; on computers it downloads as a JPEG.
 
+## Privacy
+
+Photos are only sent to Replicate to add the hats; Mutsify itself doesn't store them, and Replicate deletes them
+after 60 minutes. The page says so in one line under the colour dots.
+
 ## How it works
 
 - `index.html` — the page (upload, reindeer animation, toolbar, colour dots).
