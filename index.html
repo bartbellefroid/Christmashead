@@ -223,6 +223,11 @@ const TINTS = [
 let extra = "hat";
 // Hidden page /robin (no link to it anywhere): Robin the robot joins every photo.
 const ROBIN = /^\/robin\/?$/.test(location.pathname);
+if (ROBIN) {
+  // Robin in his Santa hat instead of the reindeer, on the page and as the tab / home-screen icon
+  document.querySelector(".icon").src = "assets/robin-icon.jpg";
+  document.querySelectorAll('link[rel="icon"], link[rel="apple-touch-icon"]').forEach(l => { l.href = "assets/robin-icon.jpg"; });
+}
 function setTint(i) {
   document.documentElement.style.setProperty("--tint", TINTS[i].c);
   $("tagline").textContent = TINTS[i].name;
