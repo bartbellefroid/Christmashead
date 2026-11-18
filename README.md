@@ -55,12 +55,19 @@ The page sends `mode: "knight"`; the server builds the knight prompt (`KNIGHT_ST
 
 ## Face lock
 
-Image models sometimes subtly redraw faces. After the AI result comes back, the page puts the real faces back
-(`faceLock` in `index.html`): for every face the detector found in the original photo it searches for that face
-in the result (allowing a small shift and size change), matches colour and brightness, and pastes the original
-inner face (eyes, nose, mouth) back with a soft edge. Hats, helmets and hair around it stay as the AI made them.
-A face is only restored when the match is confident (strong shape match, or a weaker one whose colour also
-agrees); when the AI moved or turned someone too much, that face is left alone rather than risk a double image.
+Image models sometimes subtly redraw faces (or even change the expression). After the AI result comes back, the
+page puts the real faces back (`faceLock` in `index.html`):
+
+1. It runs the face detector on the result too and pairs every original face with the face in the same spot.
+   Using the eye positions it computes the shift, scale and rotation, and pastes the original inner face
+   (eyes, nose, mouth) there, colour-matched and with a soft edge. This works even when the AI changed the
+   expression. It is skipped when the AI turned the head (judged from where the nose sits between the eyes),
+   because a side-on face doesn't fit a head that now faces the camera.
+2. Faces without landmarks (some animal faces) fall back to a pixel comparison nearby, and are only restored on
+   a confident match whose colour also agrees.
+
+Hats, helmets and hair around the face stay as the AI made them. When no confident match is found, the face is
+left alone rather than risk a double image.
 
 ## Saving
 
