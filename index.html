@@ -279,7 +279,9 @@ const loadImage = src => new Promise((res, rej) => { const i = new Image(); i.on
 let qrImage = null;
 
 async function watermark(src) {
-  const [img, qr] = await Promise.all([loadImage(src), qrImage ??= loadImage("assets/qr.png")]);
+  // The QR code leads back to the page the picture was made on (/, /robin or /ridder).
+  const qrFile = ROBIN ? "assets/qr-robin.png" : KNIGHT ? "assets/qr-ridder.png" : "assets/qr.png";
+  const [img, qr] = await Promise.all([loadImage(src), qrImage ??= loadImage(qrFile)]);
   try { await document.fonts.load("700 40px Inter"); } catch {}
   const W = img.naturalWidth, H = img.naturalHeight, c = document.createElement("canvas");
   c.width = W; c.height = H;
