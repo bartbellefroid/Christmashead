@@ -28,6 +28,14 @@ The colour dots tint the page and choose what the AI adds besides the Santa hat:
 The choice applies to the next picture (or ↻ Again). Cookies and candy canes work best for animals and for people
 whose hands are in the photo; the model doesn't add hands, so someone without visible hands may get none.
 
+## Hidden page: /robin
+
+`/robin` (and `/robin/`) is the same app with one difference: Robin, the little white robot from
+`assets/robin.png`, joins every photo, close to the others like a family member, wearing a Santa hat too.
+There is no link to it anywhere. The page sends `robin: true`; the server then passes Robin's picture
+(`lib/robin-image.mjs`) to the model as a second input image and adds him to the prompt. It counts towards
+the same rate limit.
+
 ## Saving
 
 The result gets a small badge in the bottom-left corner: a QR code to https://mutsify.netlify.app and the word

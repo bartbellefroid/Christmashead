@@ -1,3 +1,14 @@
 [build]
   publish = "."
   functions = "netlify/functions"
+
+# Hidden page: same app, Robin the robot joins every photo (no link to it anywhere)
+[[redirects]]
+  from = "/robin"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/robin/"
+  to = "/index.html"
+  status = 200
