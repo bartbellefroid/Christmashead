@@ -211,23 +211,35 @@ function toast(msg) {
   }
 }
 
+// ---------- hidden pages (no link to them anywhere) ----------
+// /robin:  Robin the robot joins every photo.
+// /ridder: everyone becomes a medieval knight instead of getting a Santa hat.
+const ROBIN = /^\/robin\/?$/.test(location.pathname);
+const KNIGHT = /^\/ridder\/?$/.test(location.pathname);
+const PAGE_ICON = ROBIN ? "assets/robin-icon.jpg" : KNIGHT ? "assets/knight-icon.jpg" : null;
+if (PAGE_ICON) {
+  // own icon on the page and as the tab / home-screen icon
+  document.querySelector(".icon").src = PAGE_ICON;
+  document.querySelectorAll('link[rel="icon"], link[rel="apple-touch-icon"]').forEach(l => { l.href = PAGE_ICON; });
+}
+
 // ---------- colour dots ----------
-// Each dot tints the page and picks what the AI adds besides the Santa hat.
-const TINTS = [
+// Each dot tints the page and picks what the AI adds besides the Santa hat
+// (on /ridder: which knight's costume and helmet).
+const TINTS = KNIGHT ? [
+  { c: "47, 106, 160", name: "Steel • Plate Armour", extra: "plate" },
+  { c: "176, 50, 66", name: "Crimson • Royal Guard", extra: "guard" },
+  { c: "46, 122, 88", name: "Pine • Forest Knight", extra: "forest" },
+  { c: "190, 122, 62", name: "Gold • Knight King", extra: "king" },
+  { c: "142, 104, 184", name: "Sugarplum • Tournament", extra: "tournament" },
+] : [
   { c: "47, 106, 160", name: "Frosty Blue • Snowdeer", extra: "hat" },
   { c: "176, 50, 66", name: "Cranberry • Rudolph", extra: "antlers" },
   { c: "46, 122, 88", name: "Pine • Scarf", extra: "scarf" },
   { c: "190, 122, 62", name: "Gingerbread • Cookie", extra: "cookie" },
   { c: "142, 104, 184", name: "Sugarplum • Candy Cane", extra: "candycane" },
 ];
-let extra = "hat";
-// Hidden page /robin (no link to it anywhere): Robin the robot joins every photo.
-const ROBIN = /^\/robin\/?$/.test(location.pathname);
-if (ROBIN) {
-  // Robin in his Santa hat instead of the reindeer, on the page and as the tab / home-screen icon
-  document.querySelector(".icon").src = "assets/robin-icon.jpg";
-  document.querySelectorAll('link[rel="icon"], link[rel="apple-touch-icon"]').forEach(l => { l.href = "assets/robin-icon.jpg"; });
-}
+let extra = TINTS[0].extra;
 function setTint(i) {
   document.documentElement.style.setProperty("--tint", TINTS[i].c);
   $("tagline").textContent = TINTS[i].name;
@@ -536,7 +548,7 @@ async function makeFunny() {
     await detectReady;                     // lets the prompt name exactly who is in the photo
     const first = await api("/api/funhouse", {
       method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ image: photoAsDataURL(), subjects: subjectCounts(), extra, robin: ROBIN }),
+      body: JSON.stringify({ image: photoAsDataURL(), subjects: subjectCounts(), extra, robin: ROBIN, mode: KNIGHT ? "knight" : "hat" }),
     });
     remaining = first.remaining ?? null;
     let result = first.status === "succeeded" ? first.image : null, failures = 0;

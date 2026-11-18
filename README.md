@@ -36,6 +36,23 @@ There is no link to it anywhere. The page sends `robin: true`; the server then p
 (`lib/robin-image.mjs`) to the model as a second input image and adds him to the prompt. It counts towards
 the same rate limit.
 
+## Hidden page: /ridder
+
+`/ridder` (and `/ridder/`) turns everyone in the photo into a medieval knight instead of adding a Santa hat,
+keeping faces, expressions, poses and the rest of the photo as they are. All helmets are open-faced. Animals
+stay animals: small ones get a little helmet and armoured coat, large ones (horses, cows) horse armour. There is
+no link to it. The colour dots pick the costume:
+
+| Dot | Knight |
+|---|---|
+| Steel • Plate Armour | silver plate armour, blue tabard, raised-visor helmet with red plume |
+| Crimson • Royal Guard | chainmail, red tabard with golden lion, kettle-hat helmet |
+| Pine • Forest Knight | green armour with bronze edges, green cloak, oak-leaf crest |
+| Gold • Knight King | golden armour, red velvet cape, crowned helmet |
+| Sugarplum • Tournament | purple-and-white jousting tabard, feather plumes |
+
+The page sends `mode: "knight"`; the server builds the knight prompt (`KNIGHT_STYLES` in the function).
+
 ## Saving
 
 The result gets a small badge in the bottom-left corner: a QR code to https://mutsify.netlify.app and the word

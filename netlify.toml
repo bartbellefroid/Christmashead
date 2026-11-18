@@ -12,3 +12,14 @@
   from = "/robin/"
   to = "/index.html"
   status = 200
+
+# Hidden page: same app, everyone becomes a medieval knight (no link to it anywhere)
+[[redirects]]
+  from = "/ridder"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/ridder/"
+  to = "/index.html"
+  status = 200
