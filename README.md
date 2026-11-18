@@ -3,7 +3,7 @@
 Drop a photo and get a Christmas version of it: every person and animal gets exactly one Santa hat, worn in a funny way
 (cheekily tilted, tiny, extra tall and floppy, backwards…), always above the eyes. Faces stay exactly as they are. Never the same twice.
 
-While the AI works (10–30 seconds), a reindeer walks onto your photo and eats it bite by bite, then burps
+While the AI works (10–30 seconds), a reindeer walks along the bottom edge of your photo and eats it strip by strip, then burps
 and reveals the result with confetti.
 
 ## Design
