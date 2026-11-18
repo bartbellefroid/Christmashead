@@ -3,12 +3,14 @@
 //
 //   POST /api/funhouse  { image: "data:image/jpeg;base64,...", subjects?, extra? }  -> { id, status }
 //        extra: "hat" (default) | "antlers" | "scarf" | "cookie" | "candycane" — chosen with the colour dots
+//        robin: true — sent by the hidden /robin page: Robin the robot joins the photo
 //   GET  /api/funhouse?id=<prediction id>                        -> { status, image?, error? }
 //
 // Generation takes longer than many serverless time limits, so the browser starts the
 // prediction and then polls for the result.
 
 import { takeSlot, giveBack, clientIp, LIMIT, WINDOW_MS } from "../../lib/rate-limit.mjs";
+import { ROBIN_IMAGE } from "../../lib/robin-image.mjs";
 
 const MODEL_URL = "https://api.replicate.com/v1/models/black-forest-labs/flux-2-klein-4b/predictions";
 const PREDICTION_URL = "https://api.replicate.com/v1/predictions/";
@@ -93,11 +95,21 @@ function totalHeads(subjects) {
   return Object.values(subjects).reduce((sum, n) => sum + n, 0);
 }
 
-function buildPrompt(raw, extraName) {
+// /robin: Robin (the robot in the second input image) joins every photo, close by like family.
+const ROBIN_TEXT = [
+  "The second image shows Robin, a small friendly toy robot. Add Robin into the first photo as one extra member of the group:",
+  "close to the others, like a beloved family member posing with them (for example right beside or in front of them,",
+  "leaning in or snuggled up), at a natural size compared to them, facing the camera, in the same lighting, perspective and focus as the photo.",
+  "Robin keeps exactly the look from the second image: smooth glossy white body and round head, one big blue eye,",
+  "a small smile, an antenna with a blue ball, short dark-blue arms with white hands, three small coloured buttons",
+  "(green, blue, orange) and a dark-blue base. Robin also wears a Santa hat, sized to his round head, above his eye.",
+].join(" ");
+
+function buildPrompt(raw, extraName, robin = false) {
   const subjects = normalise(raw);
   const extra = EXTRAS[extraName] || null;
   const who = describe(subjects);
-  const n = totalHeads(subjects);
+  const n = totalHeads(subjects) + (robin ? 1 : 0);
   // One way of wearing it per head. Listing several ideas for a single head made the model merge
   // them into one hat (two tips, two pom-poms: a jester's hat).
   const ideas = shuffle([...HAT_IDEAS]).slice(0, Math.min(Math.max(n, 1), 3));
@@ -107,7 +119,7 @@ function buildPrompt(raw, extraName) {
   return [
     "Add a red Santa Christmas hat with white fur trim and a pom-pom on top of each head in this photo.",
     extra ? "Change nothing else apart from the one extra described below." : "Change nothing else.",
-    who ? `The photo shows exactly ${who}, so add exactly ${NUMBERS[n] || n} Santa ${n === 1 ? "hat" : "hats"} in total: one hat per head, never more.`
+    who ? `The photo shows exactly ${who}${robin ? ", plus Robin who joins them" : ""}, so add exactly ${NUMBERS[n] || n} Santa ${n === 1 ? "hat" : "hats"} in total: one hat per head, never more.`
         : "Every head or face in the photo gets one hat (people, animals, toys, figures, drawings), never more than one per head.",
     "Only on heads: no hats on backs, tails, bodies, objects or the background, and no second hat on any head.",
     "Each hat is sized to fit its head and sits on top of it: the white brim rests on the upper part of the head,",
@@ -116,14 +128,15 @@ function buildPrompt(raw, extraName) {
     "skin, fur, colours and identity. Do not retouch, stylise, warp or redraw any face.",
     hasAnimals ? "Animals stay exactly the same animals, with their own unchanged heads." : "",
     who && !hasPeople ? "There are no people in this photo: do not add any human face or human features." : "",
-    "Do not add any extra heads, faces, people or animals.",
+    robin ? ROBIN_TEXT : "",
+    robin ? "Apart from Robin, do not add any extra heads, faces, people or animals." : "Do not add any extra heads, faces, people or animals.",
     "Every hat is one classic Santa hat: a single soft cone that ends in one point with one white pom-pom.",
     ideas.length === 1
       ? `Make it funny only through how the hat is worn: ${ideas[0]}.`
       : `Make it funny only through how each hat is worn, each one differently, for example: ${ideas.join("; ")}.`,
     "The hats sit naturally on the heads with matching lighting and shadows.",
     extra ? extra.text : "",
-    extra && who ? `That is exactly ${NUMBERS[n] || n} ${n === 1 ? extra.each : extra.each + "s"} in total, one each.` : "",
+    extra && who ? `That is exactly ${NUMBERS[n] || n} ${n === 1 ? extra.each : extra.each + "s"} in total, one each${robin ? ", Robin included" : ""}.` : "",
     `Keep the background, the bodies, arms, legs, clothing${extra ? extra.keep : ""} and the photographic style unchanged.`,
   ].filter(Boolean).join(" ");
 }
@@ -156,7 +169,7 @@ async function finish(p, extra = {}) {
 }
 
 async function start(req, context) {
-  const { image, subjects, extra } = await req.json().catch(() => ({}));
+  const { image, subjects, extra, robin } = await req.json().catch(() => ({}));
   if (typeof image !== "string" || !/^data:image\/(jpeg|png|webp);base64,/.test(image)) {
     return json({ error: "Send a JPEG, PNG or WebP image as a data URL." }, 400);
   }
@@ -180,8 +193,8 @@ async function start(req, context) {
       headers: { prefer: "wait=5" }, // short wait: often done already, and stays under serverless time limits
       body: JSON.stringify({
         input: {
-          prompt: buildPrompt(subjects && typeof subjects === "object" ? subjects : null, Object.hasOwn(EXTRAS, extra) ? extra : "hat"),
-          images: [image],
+          prompt: buildPrompt(subjects && typeof subjects === "object" ? subjects : null, Object.hasOwn(EXTRAS, extra) ? extra : "hat", robin === true),
+          images: robin === true ? [image, ROBIN_IMAGE] : [image],
           aspect_ratio: "match_input_image",
           output_format: "jpg",
           output_quality: 90,

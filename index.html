@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<base href="/">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Mutsify</title>
 <meta name="description" content="Drop a photo and get a funny Christmas version, with a Santa hat on every head.">
@@ -220,6 +221,8 @@ const TINTS = [
   { c: "142, 104, 184", name: "Sugarplum • Candy Cane", extra: "candycane" },
 ];
 let extra = "hat";
+// Hidden page /robin (no link to it anywhere): Robin the robot joins every photo.
+const ROBIN = /^\/robin\/?$/.test(location.pathname);
 function setTint(i) {
   document.documentElement.style.setProperty("--tint", TINTS[i].c);
   $("tagline").textContent = TINTS[i].name;
@@ -528,7 +531,7 @@ async function makeFunny() {
     await detectReady;                     // lets the prompt name exactly who is in the photo
     const first = await api("/api/funhouse", {
       method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ image: photoAsDataURL(), subjects: subjectCounts(), extra }),
+      body: JSON.stringify({ image: photoAsDataURL(), subjects: subjectCounts(), extra, robin: ROBIN }),
     });
     remaining = first.remaining ?? null;
     let result = first.status === "succeeded" ? first.image : null, failures = 0;
