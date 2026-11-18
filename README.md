@@ -13,6 +13,21 @@ a thin-line icon toolbar (new photo · again · save) and colour dots that tint 
 (Frosty Blue, Cranberry, Pine, Gingerbread, Sugarplum). The images in `assets/` were generated with the same
 Replicate model; the photo-eating reindeer was generated on a green screen and cut out.
 
+## Colour dots = extras
+
+The colour dots tint the page and choose what the AI adds besides the Santa hat:
+
+| Dot | Extra |
+|---|---|
+| Frosty Blue • Snowdeer | just the hat (default) |
+| Cranberry • Rudolph | small felt reindeer antlers on the hat |
+| Pine • Scarf | a knitted red-and-green Christmas scarf |
+| Gingerbread • Cookie | a gingerbread cookie for everyone |
+| Sugarplum • Candy Cane | a candy cane for everyone |
+
+The choice applies to the next picture (or ↻ Again). Cookies and candy canes work best for animals and for people
+whose hands are in the photo; the model doesn't add hands, so someone without visible hands may get none.
+
 ## Saving
 
 The result gets a small badge in the bottom-left corner: a QR code to https://mutsify.netlify.app and the word

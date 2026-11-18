@@ -211,16 +211,19 @@ function toast(msg) {
 }
 
 // ---------- colour dots ----------
+// Each dot tints the page and picks what the AI adds besides the Santa hat.
 const TINTS = [
-  { c: "47, 106, 160", name: "Frosty Blue • Snowdeer" },
-  { c: "176, 50, 66", name: "Cranberry • Rudolph" },
-  { c: "46, 122, 88", name: "Pine • Mistletoe" },
-  { c: "190, 122, 62", name: "Gingerbread • Cookie" },
-  { c: "142, 104, 184", name: "Sugarplum • Dancer" },
+  { c: "47, 106, 160", name: "Frosty Blue • Snowdeer", extra: "hat" },
+  { c: "176, 50, 66", name: "Cranberry • Rudolph", extra: "antlers" },
+  { c: "46, 122, 88", name: "Pine • Scarf", extra: "scarf" },
+  { c: "190, 122, 62", name: "Gingerbread • Cookie", extra: "cookie" },
+  { c: "142, 104, 184", name: "Sugarplum • Candy Cane", extra: "candycane" },
 ];
+let extra = "hat";
 function setTint(i) {
   document.documentElement.style.setProperty("--tint", TINTS[i].c);
   $("tagline").textContent = TINTS[i].name;
+  extra = TINTS[i].extra;
   [...$("dots").children].forEach((d, k) => d.classList.toggle("on", k === i));
   try { localStorage.setItem("mutsify-tint", i); } catch {}
 }
@@ -525,7 +528,7 @@ async function makeFunny() {
     await detectReady;                     // lets the prompt name exactly who is in the photo
     const first = await api("/api/funhouse", {
       method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ image: photoAsDataURL(), subjects: subjectCounts() }),
+      body: JSON.stringify({ image: photoAsDataURL(), subjects: subjectCounts(), extra }),
     });
     remaining = first.remaining ?? null;
     let result = first.status === "succeeded" ? first.image : null, failures = 0;

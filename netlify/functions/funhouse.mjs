@@ -1,7 +1,8 @@
 // Mutsify AI edit (funny Santa hats, faces unchanged) via Replicate (black-forest-labs/flux-2-klein-4b).
 // The Replicate token stays on the server: set REPLICATE_API_TOKEN in the hosting environment.
 //
-//   POST /api/funhouse  { image: "data:image/jpeg;base64,..." }  -> { id, status }
+//   POST /api/funhouse  { image: "data:image/jpeg;base64,...", subjects?, extra? }  -> { id, status }
+//        extra: "hat" (default) | "antlers" | "scarf" | "cookie" | "candycane" — chosen with the colour dots
 //   GET  /api/funhouse?id=<prediction id>                        -> { status, image?, error? }
 //
 // Generation takes longer than many serverless time limits, so the browser starts the
@@ -62,12 +63,39 @@ function normalise(subjects) {
   return clean;
 }
 
+// Optional extra per colour dot on the page. "hat" (the default) adds nothing beyond the hat.
+// `each` is the item counted per head, `keep` relaxes "keep the bodies unchanged" just enough for it.
+const EXTRAS = {
+  hat: null,
+  antlers: {
+    each: "pair of antlers",
+    text: "On every Santa hat, also attach a pair of small soft felt reindeer antlers in light brown, sticking up from the hat.",
+    keep: "",
+  },
+  scarf: {
+    each: "scarf",
+    text: "Also wrap a cosy knitted Christmas scarf with red and green stripes loosely around every neck, over the clothes or fur.",
+    keep: " (apart from the scarf around the neck)",
+  },
+  cookie: {
+    each: "gingerbread cookie",
+    text: "Also give everyone a gingerbread man cookie with white icing, clearly visible: animals have it in their mouth or right in front of their paws; people hold it in a hand that is already visible in the photo, and anyone whose hands are not visible gets it tucked into the white fur brim of their hat. Never add extra hands or arms.",
+    keep: " (apart from a hand or paws holding the cookie)",
+  },
+  candycane: {
+    each: "candy cane",
+    text: "Also give everyone a red-and-white striped candy cane, clearly visible: animals have it in their mouth or right in front of their paws; people hold it in a hand that is already visible in the photo, and anyone whose hands are not visible gets it hooked over the white fur brim of their hat. Never add extra hands or arms.",
+    keep: " (apart from a hand or paws holding the candy cane)",
+  },
+};
+
 function totalHeads(subjects) {
   return Object.values(subjects).reduce((sum, n) => sum + n, 0);
 }
 
-function buildPrompt(raw) {
+function buildPrompt(raw, extraName) {
   const subjects = normalise(raw);
+  const extra = EXTRAS[extraName] || null;
   const who = describe(subjects);
   const n = totalHeads(subjects);
   // One way of wearing it per head. Listing several ideas for a single head made the model merge
@@ -77,7 +105,8 @@ function buildPrompt(raw) {
   const hasPeople = kinds.includes("person");
   const hasAnimals = kinds.some(k => k !== "person");
   return [
-    "Add a red Santa Christmas hat with white fur trim and a pom-pom on top of each head in this photo. Change nothing else.",
+    "Add a red Santa Christmas hat with white fur trim and a pom-pom on top of each head in this photo.",
+    extra ? "Change nothing else apart from the one extra described below." : "Change nothing else.",
     who ? `The photo shows exactly ${who}, so add exactly ${NUMBERS[n] || n} Santa ${n === 1 ? "hat" : "hats"} in total: one hat per head, never more.`
         : "Every head or face in the photo gets one hat (people, animals, toys, figures, drawings), never more than one per head.",
     "Only on heads: no hats on backs, tails, bodies, objects or the background, and no second hat on any head.",
@@ -93,7 +122,9 @@ function buildPrompt(raw) {
       ? `Make it funny only through how the hat is worn: ${ideas[0]}.`
       : `Make it funny only through how each hat is worn, each one differently, for example: ${ideas.join("; ")}.`,
     "The hats sit naturally on the heads with matching lighting and shadows.",
-    "Keep the background, the bodies, arms, legs, clothing and the photographic style unchanged.",
+    extra ? extra.text : "",
+    extra && who ? `That is exactly ${NUMBERS[n] || n} ${n === 1 ? extra.each : extra.each + "s"} in total, one each.` : "",
+    `Keep the background, the bodies, arms, legs, clothing${extra ? extra.keep : ""} and the photographic style unchanged.`,
   ].filter(Boolean).join(" ");
 }
 
@@ -125,7 +156,7 @@ async function finish(p, extra = {}) {
 }
 
 async function start(req, context) {
-  const { image, subjects } = await req.json().catch(() => ({}));
+  const { image, subjects, extra } = await req.json().catch(() => ({}));
   if (typeof image !== "string" || !/^data:image\/(jpeg|png|webp);base64,/.test(image)) {
     return json({ error: "Send a JPEG, PNG or WebP image as a data URL." }, 400);
   }
@@ -149,7 +180,7 @@ async function start(req, context) {
       headers: { prefer: "wait=5" }, // short wait: often done already, and stays under serverless time limits
       body: JSON.stringify({
         input: {
-          prompt: buildPrompt(subjects && typeof subjects === "object" ? subjects : null),
+          prompt: buildPrompt(subjects && typeof subjects === "object" ? subjects : null, Object.hasOwn(EXTRAS, extra) ? extra : "hat"),
           images: [image],
           aspect_ratio: "match_input_image",
           output_format: "jpg",
