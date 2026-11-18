@@ -4,6 +4,8 @@
 //   POST /api/funhouse  { image: "data:image/jpeg;base64,...", subjects?, extra? }  -> { id, status }
 //        extra: "hat" (default) | "antlers" | "scarf" | "cookie" | "candycane" — chosen with the colour dots
 //        robin: true — sent by the hidden /robin page: Robin the robot joins the photo
+//        mode: "knight" — sent by the hidden /ridder page: everyone becomes a medieval knight;
+//              extra then picks the costume: "plate" | "guard" | "forest" | "king" | "tournament"
 //   GET  /api/funhouse?id=<prediction id>                        -> { status, image?, error? }
 //
 // Generation takes longer than many serverless time limits, so the browser starts the
@@ -105,6 +107,56 @@ const ROBIN_TEXT = [
   "(green, blue, orange) and a dark-blue base. Robin also wears a Santa hat, sized to his round head, above his eye.",
 ].join(" ");
 
+// /ridder: everyone becomes a medieval knight. The colour dots pick the costume and helmet.
+// All helmets are open-faced, so the face itself is never covered or changed.
+const KNIGHT_STYLES = {
+  plate: {
+    costume: "polished silver steel plate armour with a royal-blue tabard",
+    helmet: "a shiny steel bascinet helmet with its visor raised up high and a tall red feather plume",
+  },
+  guard: {
+    costume: "a chainmail shirt under a red heraldic tabard showing a golden lion",
+    helmet: "a round steel kettle-hat helmet with a wide brim, over a chainmail hood that frames the face",
+  },
+  forest: {
+    costume: "dark green enamelled armour with bronze edges and a green hooded cloak",
+    helmet: "an open-faced bronze helmet with a small crest of oak leaves",
+  },
+  king: {
+    costume: "ornate golden armour with engraved patterns and a red velvet cape with white fur trim",
+    helmet: "an open-faced golden helmet with a small royal crown on top",
+  },
+  tournament: {
+    costume: "steel armour under a jousting tabard with purple and white stripes",
+    helmet: "an open-faced steel helmet with large purple and white feather plumes",
+  },
+};
+
+function buildKnightPrompt(raw, styleName) {
+  const subjects = normalise(raw);
+  const style = KNIGHT_STYLES[styleName] || KNIGHT_STYLES.plate;
+  const who = describe(subjects);
+  const n = totalHeads(subjects);
+  const kinds = Object.keys(subjects);
+  const hasPeople = kinds.includes("person");
+  const hasAnimals = kinds.some(k => k !== "person");
+  return [
+    "Edit this photo so that everyone in it wears a medieval knight's costume. This is a costume change only:",
+    "the people and animals themselves, their faces, expressions, poses and the whole rest of the photo stay as they are.",
+    who ? `The photo shows exactly ${who}; each of them becomes a knight: exactly ${NUMBERS[n] || n} ${n === 1 ? "knight" : "knights"}, one costume each.`
+        : "Everyone in the photo (people, animals, toys, figures) becomes a knight, one costume each.",
+    `Dress each of them in ${style.costume}. On each head: ${style.helmet}.`,
+    "Every helmet is open-faced and sits around the head: the whole face stays fully visible, exactly as in the original photo:",
+    "same face shape, eyes, mouth, skin, fur, hair at the face, colours and identity, and the very same expression",
+    "(an open mouth stays open, a frown stays a frown, a smile stays a smile). Do not retouch, stylise, warp or redraw any face.",
+    hasAnimals ? "Animals stay exactly the same animals with their own unchanged heads, in their own pose (standing, sitting, grazing or lying), and are dressed as a knight's animal: small animals such as dogs and cats wear a little helmet fitted to their head and a matching little armoured coat over their back; large animals such as horses and cows wear horse armour: a decorated cloth (caparison) over the body and a metal face plate on their own head that leaves their eyes free. An animal never turns into a person." : "",
+    who && !hasPeople ? "There are no people in this photo: do not add any human face or human features." : "",
+    "The armour follows everyone's existing pose: keep their pose, gestures (for example a pointing hand), position, size and body shape exactly the same.",
+    "Keep the background, the composition and framing, the lighting and the photographic style exactly as in the original photo.",
+    "Do not add any extra people, animals, horses, weapons or objects.",
+  ].filter(Boolean).join(" ");
+}
+
 function buildPrompt(raw, extraName, robin = false) {
   const subjects = normalise(raw);
   const extra = EXTRAS[extraName] || null;
@@ -169,7 +221,9 @@ async function finish(p, extra = {}) {
 }
 
 async function start(req, context) {
-  const { image, subjects, extra, robin } = await req.json().catch(() => ({}));
+  const { image, subjects, extra, robin, mode } = await req.json().catch(() => ({}));
+  const knight = mode === "knight";
+  const cleanSubjects = subjects && typeof subjects === "object" ? subjects : null;
   if (typeof image !== "string" || !/^data:image\/(jpeg|png|webp);base64,/.test(image)) {
     return json({ error: "Send a JPEG, PNG or WebP image as a data URL." }, 400);
   }
@@ -193,8 +247,10 @@ async function start(req, context) {
       headers: { prefer: "wait=5" }, // short wait: often done already, and stays under serverless time limits
       body: JSON.stringify({
         input: {
-          prompt: buildPrompt(subjects && typeof subjects === "object" ? subjects : null, Object.hasOwn(EXTRAS, extra) ? extra : "hat", robin === true),
-          images: robin === true ? [image, ROBIN_IMAGE] : [image],
+          prompt: knight
+            ? buildKnightPrompt(cleanSubjects, Object.hasOwn(KNIGHT_STYLES, extra) ? extra : "plate")
+            : buildPrompt(cleanSubjects, Object.hasOwn(EXTRAS, extra) ? extra : "hat", robin === true),
+          images: robin === true && !knight ? [image, ROBIN_IMAGE] : [image],
           aspect_ratio: "match_input_image",
           output_format: "jpg",
           output_quality: 90,
