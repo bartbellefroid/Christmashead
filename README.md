@@ -53,10 +53,20 @@ no link to it. The colour dots pick the costume:
 
 The page sends `mode: "knight"`; the server builds the knight prompt (`KNIGHT_STYLES` in the function).
 
+## Face lock
+
+Image models sometimes subtly redraw faces. After the AI result comes back, the page puts the real faces back
+(`faceLock` in `index.html`): for every face the detector found in the original photo it searches for that face
+in the result (allowing a small shift and size change), matches colour and brightness, and pastes the original
+inner face (eyes, nose, mouth) back with a soft edge. Hats, helmets and hair around it stay as the AI made them.
+A face is only restored when the match is confident (strong shape match, or a weaker one whose colour also
+agrees); when the AI moved or turned someone too much, that face is left alone rather than risk a double image.
+
 ## Saving
 
-The result gets a small badge in the bottom-left corner: a QR code to https://mutsify.netlify.app and the word
-"Mutsify" (`assets/qr.png`, drawn onto the photo in the browser). On phones, Save opens the share sheet so the
+The result gets a small badge in the bottom-left corner: a QR code and the word "Mutsify", drawn onto the photo in
+the browser. The QR code leads back to the page the picture was made on: `assets/qr.png` (main page),
+`assets/qr-robin.png` (/robin) or `assets/qr-ridder.png` (/ridder). On phones, Save opens the share sheet so the
 picture can go straight into Photos / the gallery; on computers it downloads as a JPEG.
 
 ## Privacy
