@@ -23,3 +23,14 @@
   from = "/ridder/"
   to = "/index.html"
   status = 200
+
+# The QR codes in the watermark write the address in capitals (smaller code)
+[[redirects]]
+  from = "/ROBIN"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/RIDDER"
+  to = "/index.html"
+  status = 200
