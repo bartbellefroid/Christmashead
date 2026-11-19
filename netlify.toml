@@ -1,4 +1,6 @@
 [build]
+  # prompts.md is the hand-editable source of all AI prompts; turn it into lib/prompts-data.mjs
+  command = "node scripts/build-prompts.mjs"
   publish = "."
   functions = "netlify/functions"
 

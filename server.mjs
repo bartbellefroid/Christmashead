@@ -2,7 +2,9 @@
 //   REPLICATE_API_TOKEN=r8_... node server.mjs   then open http://localhost:8787
 import http from "node:http";
 import { readFile } from "node:fs/promises";
-import handler from "./netlify/functions/funhouse.mjs";
+// Read prompts.md first (writes lib/prompts-data.mjs), then load the function that uses it.
+await import("./scripts/build-prompts.mjs");
+const { default: handler } = await import("./netlify/functions/funhouse.mjs");
 
 const PORT = Number(process.env.PORT) || 8787;
 
