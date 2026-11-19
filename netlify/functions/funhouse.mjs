@@ -68,29 +68,13 @@ function normalise(subjects) {
 }
 
 // Optional extra per colour dot on the page. "hat" (the default) adds nothing beyond the hat.
-// `each` is the item counted per head, `keep` relaxes "keep the bodies unchanged" just enough for it.
+// One short sentence each, in the same plain style as the rest of the prompt.
 const EXTRAS = {
   hat: null,
-  antlers: {
-    each: "pair of antlers",
-    text: "On every Santa hat, also attach a pair of small soft felt reindeer antlers in light brown, sticking up from the hat.",
-    keep: "",
-  },
-  scarf: {
-    each: "scarf",
-    text: "Also wrap a cosy knitted Christmas scarf with red and green stripes loosely around every neck, over the clothes or fur.",
-    keep: " (apart from the scarf around the neck)",
-  },
-  cookie: {
-    each: "gingerbread cookie",
-    text: "Also give everyone a gingerbread man cookie with white icing, clearly visible: animals have it in their mouth or right in front of their paws; people hold it in a hand that is already visible in the photo, and anyone whose hands are not visible gets it tucked into the white fur brim of their hat. Never add extra hands or arms.",
-    keep: " (apart from a hand or paws holding the cookie)",
-  },
-  candycane: {
-    each: "candy cane",
-    text: "Also give everyone a red-and-white striped candy cane, clearly visible: animals have it in their mouth or right in front of their paws; people hold it in a hand that is already visible in the photo, and anyone whose hands are not visible gets it hooked over the white fur brim of their hat. Never add extra hands or arms.",
-    keep: " (apart from a hand or paws holding the candy cane)",
-  },
+  antlers: { text: "Each Santa hat also has a pair of small soft felt reindeer antlers in light brown sticking up from it." },
+  scarf: { text: "Everyone also wears a cosy knitted Christmas scarf with red and green stripes, loosely around the neck." },
+  cookie: { text: "Everyone also has a gingerbread man cookie with white icing: people hold it in a hand that is already in the picture, animals have it in their mouth or in front of their paws." },
+  candycane: { text: "Everyone also has a red-and-white striped candy cane: people hold it in a hand that is already in the picture, animals have it in their mouth or in front of their paws." },
 };
 
 function totalHeads(subjects) {
@@ -99,12 +83,9 @@ function totalHeads(subjects) {
 
 // /robin: Robin (the robot in the second input image) joins every photo, close by like family.
 const ROBIN_TEXT = [
-  "The second image shows Robin, a small friendly toy robot. Add Robin into the first photo as one extra member of the group:",
-  "close to the others, like a beloved family member posing with them (for example right beside or in front of them,",
-  "leaning in or snuggled up), at a natural size compared to them, facing the camera, in the same lighting, perspective and focus as the photo.",
-  "Robin keeps exactly the look from the second image: smooth glossy white body and round head, one big blue eye,",
-  "a small smile, an antenna with a blue ball, short dark-blue arms with white hands, three small coloured buttons",
-  "(green, blue, orange) and a dark-blue base. Robin also wears a Santa hat, sized to his round head, above his eye.",
+  "Also add Robin, the small white toy robot from the second image, into the picture: one robot, close to the others like a",
+  "member of the family posing with them, at a natural toy size, facing the camera, in the same lighting and focus.",
+  "Robin looks exactly as in the second image and also wears a Santa hat.",
 ].join(" ");
 
 // /ridder: everyone becomes a medieval knight. The colour dots pick the costume and helmet.
@@ -132,28 +113,30 @@ const KNIGHT_STYLES = {
   },
 };
 
+// Shared closing lines, in the wording the site owner tuned by hand: short, positive, and without any
+// talk about faces (this model tends to draw or alter whatever a prompt names).
+const POSE_LINE = "exactly as it is posed right now: same position in the frame, same lean and head tilt, same arms and hand gestures, same expression, and they keep holding whatever they are holding.";
+const SCENE_LINE = "The background, framing, lighting and photographic style stay exactly the same.";
+
+function whoWord(subjects) {
+  const kinds = Object.keys(subjects);
+  const people = kinds.includes("person"), animals = kinds.some(k => k !== "person");
+  if (people && animals) return "the persons and animals";
+  if (animals) return "the animals";
+  if (people) return "the persons";
+  return "everyone";
+}
+
 function buildKnightPrompt(raw, styleName) {
   const subjects = normalise(raw);
   const style = KNIGHT_STYLES[styleName] || KNIGHT_STYLES.plate;
-  const who = describe(subjects);
-  const n = totalHeads(subjects);
-  const kinds = Object.keys(subjects);
-  const hasPeople = kinds.includes("person");
-  const hasAnimals = kinds.some(k => k !== "person");
-  // Short and face-first. Do not list face parts or accessories here (eyes, mouth, glasses…): this model
-  // tends to draw whatever is named, e.g. it added glasses to a child without glasses.
+  const hasAnimals = Object.keys(subjects).some(k => k !== "person");
   return [
-    "Keep every face in this photo exactly as it is: the faces are not edited at all.",
-    "Only the clothing changes.",
-    who ? `The photo shows exactly ${who}.` : "",
-    `Dress ${n === 1 ? "them" : "each of them"} in ${style.costume}, and put ${style.helmet} around ${n === 1 ? "the" : "each"} head.`,
-    "The helmet is open at the front and leaves the whole face uncovered and untouched.",
-    "The costume is fitted onto each body exactly as it is posed right now: same position in the frame, same lean and head tilt,",
-    "same arms and hand gestures, same expression, and they keep holding whatever they are holding.",
-    "Whatever is on a face stays on it, unchanged.",
-    hasAnimals ? "Animals stay exactly the same animals with their own unchanged heads, in their own pose, dressed as a knight's animal: small animals such as dogs and cats wear a little helmet fitted to their head and a matching little armoured coat over their back; large animals such as horses and cows wear a decorated cloth over the body and a metal face plate on their own head. An animal never turns into a person." : "",
-    who && !hasPeople ? "There are no people in this photo: do not add any human face or human features." : "",
-    "The background, framing, lighting and photographic style stay exactly the same.",
+    `Dress ${whoWord(subjects)} in this picture in ${style.costume}, and put ${style.helmet} around the head.`,
+    "The helmet is open at the front.",
+    hasAnimals ? "Animals stay the same animals: small ones such as dogs and cats wear a little helmet and a matching little armoured coat over their back, large ones such as horses and cows wear a decorated cloth over their body." : "",
+    `The costume is fitted onto each body ${POSE_LINE}`,
+    SCENE_LINE,
     "Do not add any people, animals, weapons or other objects.",
   ].filter(Boolean).join(" ");
 }
@@ -166,31 +149,16 @@ function buildPrompt(raw, extraName, robin = false) {
   // One way of wearing it per head. Listing several ideas for a single head made the model merge
   // them into one hat (two tips, two pom-poms: a jester's hat).
   const ideas = shuffle([...HAT_IDEAS]).slice(0, Math.min(Math.max(n, 1), 3));
-  const kinds = Object.keys(subjects);
-  const hasPeople = kinds.includes("person");
-  const hasAnimals = kinds.some(k => k !== "person");
   return [
-    // Do not list face parts or accessories (eyes, mouth, glasses…): this model tends to draw whatever is named.
-    "Add a red Santa Christmas hat with white fur trim and a pom-pom on top of each head in this photo.",
-    extra ? "Change nothing else apart from the one extra described below." : "Change nothing else.",
-    who ? `The photo shows exactly ${who}${robin ? ", plus Robin who joins them" : ""}, so add exactly ${NUMBERS[n] || n} Santa ${n === 1 ? "hat" : "hats"} in total: one hat per head, never more.`
-        : "Every head or face in the photo gets one hat (people, animals, toys, figures, drawings), never more than one per head.",
-    "Only on heads: no hats on backs, tails, bodies, objects or the background, and no second hat on any head.",
-    "Each hat is sized to fit its head and sits on top of it: the white brim rests on the upper part of the head,",
-    "with the whole face still fully visible below the brim, exactly as it was.",
-    "Keep every face exactly as it is: the faces are not edited at all, and everyone keeps the same expression, head position and pose.",
-    hasAnimals ? "Animals stay exactly the same animals, with their own unchanged heads." : "",
-    who && !hasPeople ? "There are no people in this photo: do not add any human face or human features." : "",
-    robin ? ROBIN_TEXT : "",
-    robin ? "Apart from Robin, do not add any extra heads, faces, people or animals." : "Do not add any extra heads, faces, people or animals.",
-    "Every hat is one classic Santa hat: a single soft cone that ends in one point with one white pom-pom.",
-    ideas.length === 1
-      ? `Make it funny only through how the hat is worn: ${ideas[0]}.`
-      : `Make it funny only through how each hat is worn, each one differently, for example: ${ideas.join("; ")}.`,
-    "The hats sit naturally on the heads with matching lighting and shadows.",
+    `Put a classic red Santa Christmas hat with white fur trim and one white pom-pom on the head of ${whoWord(subjects)} in this picture.`,
+    who ? `That is exactly ${NUMBERS[n] || n} ${n === 1 ? "hat" : "hats"}, one per head${robin ? ", Robin included" : ""}.` : "One hat per head.",
+    "Each hat sits on top of the head, above the eyebrows.",
+    ideas.length === 1 ? `The hat is worn ${ideas[0]}.` : `Each hat is worn differently, for example: ${ideas.join("; ")}.`,
     extra ? extra.text : "",
-    extra && who ? `That is exactly ${NUMBERS[n] || n} ${n === 1 ? extra.each : extra.each + "s"} in total, one each${robin ? ", Robin included" : ""}.` : "",
-    `Keep the background, the bodies, arms, legs, clothing${extra ? extra.keep : ""} and the photographic style unchanged.`,
+    robin ? ROBIN_TEXT : "",
+    `${robin ? "Everyone already in the picture" : "Everyone"} stays ${POSE_LINE}`,
+    SCENE_LINE,
+    robin ? "Robin the robot is the only addition: do not add any people, children, animals or other objects." : "Do not add any people, animals or other objects.",
   ].filter(Boolean).join(" ");
 }
 
