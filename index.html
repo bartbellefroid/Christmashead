@@ -214,8 +214,8 @@ function toast(msg) {
 // ---------- hidden pages (no link to them anywhere) ----------
 // /robin:  Robin the robot joins every photo.
 // /ridder: everyone becomes a medieval knight instead of getting a Santa hat.
-const ROBIN = /^\/robin\/?$/.test(location.pathname);
-const KNIGHT = /^\/ridder\/?$/.test(location.pathname);
+const ROBIN = /^\/robin\/?$/i.test(location.pathname);      // /i: the QR codes use capitals
+const KNIGHT = /^\/ridder\/?$/i.test(location.pathname);
 const PAGE_ICON = ROBIN ? "assets/robin-icon.jpg" : KNIGHT ? "assets/knight-icon.jpg" : null;
 if (PAGE_ICON) {
   // own icon on the page and as the tab / home-screen icon
@@ -400,10 +400,12 @@ async function watermark(src) {
   g.drawImage(img, 0, 0);
 
   const s = Math.min(W, H);
-  // Subtle mark: a small QR on its own little white tile (whole pixels per module, at least 2 px each) and a soft white "Mutsify" next to it. No card behind it.
-  const q = 29 * Math.max(2, Math.round(s * 0.05 / 29));
-  const pad = Math.round(q / 29 * 3), margin = Math.round(s * 0.025);   // pad = 3 modules of quiet zone
-  const size = Math.max(11, Math.round(q * 0.3));
+  // Subtle mark, tucked into the corner: a small QR on its own little white tile and a soft white
+  // "made with Mutsify" next to it. The QR codes are 25x25 modules (the address is written in capitals,
+  // which packs tighter); whole pixels per module and at least 2 px each, the smallest that still scans.
+  const q = 25 * Math.max(2, Math.round(s * 0.04 / 25));
+  const pad = Math.round(q / 25 * 2), margin = Math.round(s * 0.012);   // pad = 2 modules of quiet zone
+  const size = Math.max(9, Math.round(q * 0.24));
   const font = "Inter, -apple-system, system-ui, sans-serif";
   const x = margin, y = H - margin - q - pad * 2;
 
@@ -416,11 +418,20 @@ async function watermark(src) {
   g.drawImage(qr, x + pad, y + pad, q, q);
   g.imageSmoothingEnabled = true;
 
+  // "made with" in small spaced capitals, "Mutsify" in a handwritten script underneath: a little
+  // signature next to the QR code rather than a logo.
+  try { await document.fonts.load(`${Math.round(size * 1.7)}px Parisienne`); } catch {}
   g.save();
-  g.font = `600 ${size}px ${font}`; g.textBaseline = "middle";
+  const tx = x + q + pad * 2 + size * 0.5, mid = y + (q + pad * 2) / 2;
   g.shadowColor = "rgba(0,0,0,.45)"; g.shadowBlur = size * 0.4; g.shadowOffsetY = size * 0.05;
-  g.fillStyle = "rgba(255,255,255,.85)";
-  g.fillText("Mutsify", x + q + pad * 2 + size * 0.5, y + (q + pad * 2) / 2);
+  g.textBaseline = "alphabetic";
+  const small = Math.max(7, Math.round(size * 0.52));
+  g.font = `600 ${small}px ${font}`; g.fillStyle = "rgba(255,255,255,.7)";
+  try { g.letterSpacing = `${(small * 0.18).toFixed(1)}px`; } catch {}
+  g.fillText("MADE WITH", tx, mid - size * 0.42);
+  try { g.letterSpacing = "0px"; } catch {}
+  g.font = `${Math.round(size * 1.7)}px Parisienne, ${font}`; g.fillStyle = "rgba(255,255,255,.92)";
+  g.fillText("Mutsify", tx, mid + size * 0.95);
   g.restore();
 
   return new Promise(res => c.toBlob(res, "image/jpeg", 0.92));
@@ -428,6 +439,8 @@ async function watermark(src) {
 
 // ---------- saving: straight to the photo library on phones, a download elsewhere ----------
 let resultFile = null;
+// The line that goes along when the picture is shared (e.g. as the caption in WhatsApp).
+const SHARE_TEXT = ROBIN ? "Robin wishes you a very merry Christmas! 🎅" : KNIGHT ? "Ready to go!" : "Merry Christmas! 🎅";
 
 async function savePhoto() {
   if (!resultFile) return;
@@ -435,7 +448,7 @@ async function savePhoto() {
   if (phone && navigator.canShare?.({ files: [resultFile] })) {
     try {
       // Opens the share sheet: "Save Image" puts it in Photos (iPhone) / Gallery (Android).
-      await navigator.share({ files: [resultFile], title: "Mutsify" });
+      await navigator.share({ files: [resultFile], title: "Mutsify", text: SHARE_TEXT });
       return;
     } catch (err) {
       if (err.name === "AbortError") return;            // the visitor closed the sheet
