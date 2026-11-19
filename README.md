@@ -69,6 +69,11 @@ the browser. The QR code leads back to the page the picture was made on: `assets
 `assets/qr-robin.png` (/robin) or `assets/qr-ridder.png` (/ridder). On phones, Save opens the share sheet so the
 picture can go straight into Photos / the gallery; on computers it downloads as a JPEG.
 
+Next to the QR code it says "made with Mutsify" (small capitals plus the site's script font). When shared from a
+phone, a line of text goes along: "Merry Christmas! 🎅" (main page), "Ready to go!" (/ridder) or
+"Robin wishes you a very merry Christmas! 🎅" (/robin). Whether the receiving app shows that text is up to the
+app and the phone.
+
 ## Privacy
 
 Photos are only sent to Replicate to add the hats; Mutsify itself doesn't store them, and Replicate deletes them
