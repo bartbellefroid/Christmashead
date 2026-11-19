@@ -112,7 +112,7 @@ const ROBIN_TEXT = [
 const KNIGHT_STYLES = {
   plate: {
     costume: "polished silver steel plate armour with a royal-blue tabard",
-    helmet: "a shiny steel bascinet helmet with its visor raised up high and a tall red feather plume",
+    helmet: "a simple round shiny steel helmet that sits on top of the head like a cap, above the eyebrows, with a tall red feather plume on top",
   },
   guard: {
     costume: "a chainmail shirt under a red heraldic tabard showing a golden lion",
@@ -120,7 +120,7 @@ const KNIGHT_STYLES = {
   },
   forest: {
     costume: "dark green enamelled armour with bronze edges and a green hooded cloak",
-    helmet: "an open-faced bronze helmet with a small crest of oak leaves",
+    helmet: "a simple round bronze helmet that sits on top of the head like a cap, above the eyebrows, with a small crest of oak leaves",
   },
   king: {
     costume: "ornate golden armour with engraved patterns and a red velvet cape with white fur trim",
@@ -128,7 +128,7 @@ const KNIGHT_STYLES = {
   },
   tournament: {
     costume: "steel armour under a jousting tabard with purple and white stripes",
-    helmet: "an open-faced steel helmet with large purple and white feather plumes",
+    helmet: "a simple round steel helmet that sits on top of the head like a cap, above the eyebrows, with large purple and white feather plumes",
   },
 };
 
@@ -140,21 +140,21 @@ function buildKnightPrompt(raw, styleName) {
   const kinds = Object.keys(subjects);
   const hasPeople = kinds.includes("person");
   const hasAnimals = kinds.some(k => k !== "person");
+  // Short and face-first. Do not list face parts or accessories here (eyes, mouth, glasses…): this model
+  // tends to draw whatever is named, e.g. it added glasses to a child without glasses.
   return [
-    "Edit this photo so that everyone in it wears a medieval knight's costume. This is a costume change only:",
-    "the people and animals themselves, their faces, expressions, poses and the whole rest of the photo stay as they are.",
-    who ? `The photo shows exactly ${who}; each of them becomes a knight: exactly ${NUMBERS[n] || n} ${n === 1 ? "knight" : "knights"}, one costume each.`
-        : "Everyone in the photo (people, animals, toys, figures) becomes a knight, one costume each.",
-    `Dress each of them in ${style.costume}. On each head: ${style.helmet}.`,
-    "Every helmet is open-faced and sits around the head: the whole face stays fully visible, exactly as in the original photo:",
-    "same face shape, eyes, glasses, mouth, skin, fur, hair at the face, colours and identity, with exactly the same",
-    "facial expression and the same direction of gaze as in the original photo. Do not retouch, stylise, warp or redraw any face.",
-    "Everyone must stay instantly recognisable as exactly the same person or animal to anyone who knows them.",
-    hasAnimals ? "Animals stay exactly the same animals with their own unchanged heads, in their own pose (standing, sitting, grazing or lying), and are dressed as a knight's animal: small animals such as dogs and cats wear a little helmet fitted to their head and a matching little armoured coat over their back; large animals such as horses and cows wear horse armour: a decorated cloth (caparison) over the body and a metal face plate on their own head that leaves their eyes free. An animal never turns into a person." : "",
+    "Keep every face in this photo exactly as it is: the faces are not edited at all.",
+    "Only the clothing changes.",
+    who ? `The photo shows exactly ${who}.` : "",
+    `Dress ${n === 1 ? "them" : "each of them"} in ${style.costume}, and put ${style.helmet} around ${n === 1 ? "the" : "each"} head.`,
+    "The helmet is open at the front and leaves the whole face uncovered and untouched.",
+    "The costume is fitted onto each body exactly as it is posed right now: same position in the frame, same lean and head tilt,",
+    "same arms and hand gestures, same expression, and they keep holding whatever they are holding.",
+    "Whatever is on a face stays on it, unchanged.",
+    hasAnimals ? "Animals stay exactly the same animals with their own unchanged heads, in their own pose, dressed as a knight's animal: small animals such as dogs and cats wear a little helmet fitted to their head and a matching little armoured coat over their back; large animals such as horses and cows wear a decorated cloth over the body and a metal face plate on their own head. An animal never turns into a person." : "",
     who && !hasPeople ? "There are no people in this photo: do not add any human face or human features." : "",
-    "The armour follows everyone's existing pose: keep their pose, gestures (for example a pointing hand), position, size and body shape exactly the same.",
-    "Keep the background, the composition and framing, the lighting and the photographic style exactly as in the original photo.",
-    "Do not add any extra people, animals, horses, weapons or objects.",
+    "The background, framing, lighting and photographic style stay exactly the same.",
+    "Do not add any people, animals, weapons or other objects.",
   ].filter(Boolean).join(" ");
 }
 
@@ -170,6 +170,7 @@ function buildPrompt(raw, extraName, robin = false) {
   const hasPeople = kinds.includes("person");
   const hasAnimals = kinds.some(k => k !== "person");
   return [
+    // Do not list face parts or accessories (eyes, mouth, glasses…): this model tends to draw whatever is named.
     "Add a red Santa Christmas hat with white fur trim and a pom-pom on top of each head in this photo.",
     extra ? "Change nothing else apart from the one extra described below." : "Change nothing else.",
     who ? `The photo shows exactly ${who}${robin ? ", plus Robin who joins them" : ""}, so add exactly ${NUMBERS[n] || n} Santa ${n === 1 ? "hat" : "hats"} in total: one hat per head, never more.`
@@ -177,10 +178,7 @@ function buildPrompt(raw, extraName, robin = false) {
     "Only on heads: no hats on backs, tails, bodies, objects or the background, and no second hat on any head.",
     "Each hat is sized to fit its head and sits on top of it: the white brim rests on the upper part of the head,",
     "with the whole face still fully visible below the brim, exactly as it was.",
-    "Keep every face exactly the same as in the original photo: same face shape, eyes, expression, mouth,",
-    "skin, fur, glasses, colours and identity, with exactly the same facial expression and direction of gaze.",
-    "Do not retouch, stylise, warp or redraw any face.",
-    "Everyone must stay instantly recognisable as exactly the same person or animal to anyone who knows them.",
+    "Keep every face exactly as it is: the faces are not edited at all, and everyone keeps the same expression, head position and pose.",
     hasAnimals ? "Animals stay exactly the same animals, with their own unchanged heads." : "",
     who && !hasPeople ? "There are no people in this photo: do not add any human face or human features." : "",
     robin ? ROBIN_TEXT : "",
