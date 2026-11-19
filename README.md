@@ -55,45 +55,24 @@ The page sends `mode: "knight"`; the server builds the knight prompt (`KNIGHT_ST
 
 ## Face lock
 
-Image models sometimes subtly redraw faces (or even change the expression). After the AI result comes back, the
-page puts the real faces back (`faceLock` in `index.html`):
-
-1. It runs the face detector on the result too and pairs every original face with the face in the same spot.
-   Using the eye positions it computes the shift, scale and rotation, and pastes the original inner face
-   (eyes, nose, mouth) there, colour-matched and with a soft edge. This works even when the AI changed the
-   expression. It is skipped when the AI turned the head (judged from where the nose sits between the eyes),
-   because a side-on face doesn't fit a head that now faces the camera.
-2. Faces without landmarks (some animal faces) fall back to a pixel comparison nearby, and are only restored on
-   a confident match whose colour also agrees.
-
-Hats, helmets and hair around the face stay as the AI made them. When no confident match is found, the face is
-left alone rather than risk a double image.
+Image models sometimes subtly redraw faces. After the AI result comes back, the page puts the real faces back
+(`faceLock` in `index.html`): for every face the detector found in the original photo it searches for that face
+in the result (allowing a small shift and size change), matches colour and brightness, and pastes the original
+inner face (eyes, nose, mouth) back with a soft edge. Hats, helmets and hair around it stay as the AI made them.
+A face is only restored when the match is confident (strong shape match, or a weaker one whose colour also
+agrees); when the AI moved or turned someone too much, that face is left alone rather than risk a double image.
 
 ## Saving
 
 The result gets a small badge in the bottom-left corner: a QR code and the word "Mutsify", drawn onto the photo in
 the browser. The QR code leads back to the page the picture was made on: `assets/qr.png` (main page),
-`assets/qr-robin.png` (/robin) or `assets/qr-ridder.png` (/ridder). The codes write the address in capitals,
-which gives a smaller code (25×25 modules); the pages therefore also answer to /ROBIN and /RIDDER. On phones, Save opens the share sheet so the
+`assets/qr-robin.png` (/robin) or `assets/qr-ridder.png` (/ridder). On phones, Save opens the share sheet so the
 picture can go straight into Photos / the gallery; on computers it downloads as a JPEG.
-
-Next to the QR code it says "made with Mutsify" (small capitals plus the site's script font). When shared from a
-phone, a line of text goes along: "Merry Christmas! 🎅" (main page), "Ready to go!" (/ridder) or
-"Robin wishes you a very merry Christmas! 🎅" (/robin). Whether the receiving app shows that text is up to the
-app and the phone.
 
 ## Privacy
 
 Photos are only sent to Replicate to add the hats; Mutsify itself doesn't store them, and Replicate deletes them
 after 60 minutes. The page says so in one line under the colour dots.
-
-## Prompts
-
-All text that goes to the AI model lives in [`prompts.md`](prompts.md), one grey block per piece (shared
-sentences, Santa hat, the extras per colour dot, /robin, and costume and helmet per knight). Edit the text in
-the blocks, commit, deploy. `scripts/build-prompts.mjs` turns the file into `lib/prompts-data.mjs`; Netlify runs
-it on every deploy (`netlify.toml`) and `node server.mjs` runs it at start. If a block is missing or its heading
-was renamed, that script fails, so the deploy stops and the live site keeps the previous prompts.
 
 ## How it works
 

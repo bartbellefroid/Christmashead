@@ -214,8 +214,8 @@ function toast(msg) {
 // ---------- hidden pages (no link to them anywhere) ----------
 // /robin:  Robin the robot joins every photo.
 // /ridder: everyone becomes a medieval knight instead of getting a Santa hat.
-const ROBIN = /^\/robin\/?$/i.test(location.pathname);      // /i: the QR codes use capitals
-const KNIGHT = /^\/ridder\/?$/i.test(location.pathname);
+const ROBIN = /^\/robin\/?$/.test(location.pathname);
+const KNIGHT = /^\/ridder\/?$/.test(location.pathname);
 const PAGE_ICON = ROBIN ? "assets/robin-icon.jpg" : KNIGHT ? "assets/knight-icon.jpg" : null;
 if (PAGE_ICON) {
   // own icon on the page and as the tab / home-screen icon
@@ -298,161 +298,89 @@ function insideMask(w, h) {          // the inner face: an ellipse a bit below t
   return m;
 }
 
-// Paste an original face onto the result: `drawOriginal(ctx)` draws the photo into a patch that covers
-// the result region (rx, ry, rw, rh); it is colour-matched to the result and blended through a soft ellipse.
-function pasteFace(g, drawOriginal, rx, ry, rw, rh) {
-  rx = Math.round(rx); ry = Math.round(ry); rw = Math.round(rw); rh = Math.round(rh);
-  if (rw < 8 || rh < 8) return false;
-  const patch = document.createElement("canvas"); patch.width = rw; patch.height = rh;
-  const pg = patch.getContext("2d", { willReadFrequently: true });
-  drawOriginal(pg);
-  pg.setTransform(1, 0, 0, 1, 0, 0);
-  const P = pg.getImageData(0, 0, rw, rh), R = g.getImageData(rx, ry, rw, rh).data, pm = insideMask(rw, rh);
-  for (let ch = 0; ch < 3; ch++) {                         // match mean and contrast per colour channel
-    let mp = 0, mr = 0, n = 0;
-    for (let i = 0; i < pm.length; i++) if (pm[i] && P.data[i * 4 + 3]) { mp += P.data[i * 4 + ch]; mr += R[i * 4 + ch]; n++; }
-    if (!n) return false;
-    mp /= n; mr /= n; let vp = 0, vr = 0;
-    for (let i = 0; i < pm.length; i++) if (pm[i] && P.data[i * 4 + 3]) { vp += (P.data[i * 4 + ch] - mp) ** 2; vr += (R[i * 4 + ch] - mr) ** 2; }
-    const gain = Math.min(1.4, Math.max(0.7, Math.sqrt((vr + 1) / (vp + 1))));
-    for (let i = 0; i < pm.length; i++) P.data[i * 4 + ch] = (P.data[i * 4 + ch] - mp) * gain + mr;
-  }
-  pg.putImageData(P, 0, 0);
-  const soft = document.createElement("canvas"); soft.width = rw; soft.height = rh;
-  const sg = soft.getContext("2d"), feather = Math.max(2, rw * 0.08);
-  sg.filter = `blur(${feather}px)`; sg.fillStyle = "#fff";
-  sg.beginPath(); sg.ellipse(rw * .5, rh * .58, rw * .40 - feather, rh * .44 - feather, 0, 0, Math.PI * 2); sg.fill();
-  pg.globalCompositeOperation = "destination-in"; pg.drawImage(soft, 0, 0);
-  g.drawImage(patch, rx, ry);
-  return true;
-}
-
-// 1st choice: find the face in the result with the face detector and align on the eyes. This works
-// even when the AI changed the expression (open mouth, other gaze), which defeats a pixel comparison.
-function lockByLandmarks(g, head, resultHeads, kx, ky) {
-  const kp = head.box.kp;
-  if (!kp || kp.length < 2) return false;
-  const exp = { x: (head.box.x + head.box.w / 2) * kx, y: (head.box.y + head.box.h / 2) * ky, w: head.box.w * kx };
-  let match = null, bestD = Infinity;
-  for (const r of resultHeads) {
-    if (r.kind !== "face" || !r.box.kp || r.box.kp.length < 2) continue;
-    const d = Math.hypot(r.box.x + r.box.w / 2 - exp.x, r.box.y + r.box.h / 2 - exp.y);
-    if (d < bestD) { bestD = d; match = r; }
-  }
-  if (!match || bestD > exp.w * 0.7) return false;
-  // Work in result coordinates: scale the original landmarks by (kx, ky) first, because the AI result
-  // can have a slightly different aspect ratio than the photo.
-  const N = Math.min(kp.length, match.box.kp.length, 4);     // eyes, nose, mouth
-  if (N < 2) return false;
-  const O = kp.slice(0, N).map(p => ({ x: p.x * kx, y: p.y * ky })), R = match.box.kp.slice(0, N);
-  const mean = pts => ({ x: pts.reduce((t, p) => t + p.x, 0) / N, y: pts.reduce((t, p) => t + p.y, 0) / N });
-  const mo = mean(O), mr = mean(R);
-  // least-squares similarity (shift, scale, rotation) over all landmarks: far steadier than the two
-  // eyes alone, which on a small face gave a face pasted too large, with the mouth too low.
-  let sa = 0, sb = 0, so = 0;
-  for (let i = 0; i < N; i++) {
-    const ox = O[i].x - mo.x, oy = O[i].y - mo.y, rx = R[i].x - mr.x, ry = R[i].y - mr.y;
-    sa += ox * rx + oy * ry; sb += ox * ry - oy * rx; so += ox * ox + oy * oy;
-  }
-  if (so < 9) return false;
-  const cos = sa / so, sin = sb / so, sc = Math.hypot(cos, sin), rot = Math.atan2(sin, cos);
-  const boxRatio = match.box.w / (head.box.w * kx);          // second opinion on the scale
-  if (location.hash === "#debug") console.debug(`face lock: scale ${sc.toFixed(2)} (box says ${boxRatio.toFixed(2)}), rotation ${(rot * 57.3).toFixed(0)}°, result face ${Math.round(match.box.w)}px`);
-  if (sc < 0.75 || sc > 1.35 || Math.abs(rot) > 0.45) return false;          // implausible: leave it
-  if (sc / boxRatio < 0.85 || sc / boxRatio > 1.18) return false;            // landmarks and box disagree
-  // how well do the landmarks line up after the transform? (in units of the face width)
-  let err = 0;
-  for (let i = 0; i < N; i++) {
-    const ox = O[i].x - mo.x, oy = O[i].y - mo.y;
-    err += Math.hypot(mr.x + cos * ox - sin * oy - R[i].x, mr.y + sin * ox + cos * oy - R[i].y);
-  }
-  if (err / N > match.box.w * 0.06) return false;
-  // Same head pose? If the AI turned the head (e.g. profile -> facing the camera), the original face
-  // won't fit the new head: leave it. Pose = where the nose sits relative to the eyes, and how wide
-  // the eyes are apart compared with the face box.
-  const pose = (pts, w) => {
-    const [e1, e2, nose] = pts, ex = e2.x - e1.x, ey = e2.y - e1.y, d = Math.hypot(ex, ey) || 1;
-    const mid = { x: (e1.x + e2.x) / 2, y: (e1.y + e2.y) / 2 };
-    return { yaw: nose ? ((nose.x - mid.x) * ex + (nose.y - mid.y) * ey) / (d * d) : 0, spread: d / w };
-  };
-  const po = pose(O, head.box.w * kx), pr = pose(R, match.box.w);
-  const spreadRatio = po.spread / pr.spread;
-  if (location.hash === "#debug") console.debug(`face lock: yaw ${po.yaw.toFixed(2)} -> ${pr.yaw.toFixed(2)}, eye spread ratio ${spreadRatio.toFixed(2)}`);
-  if (Math.abs(po.yaw - pr.yaw) > 0.3 || spreadRatio < 0.75 || spreadRatio > 1.33) return false;
-  // the region to replace: the original face box, carried over by the same transform
-  const rw = head.box.w * kx * sc, rh = head.box.h * ky * sc;
-  const cO = { x: (head.box.x + head.box.w / 2) * kx - mo.x, y: (head.box.y + head.box.h / 2) * ky - mo.y };
-  const cx = mr.x + cos * cO.x - sin * cO.y, cy = mr.y + sin * cO.x + cos * cO.y;
-  const rx = cx - rw / 2, ry = cy - rh / 2;
-  return pasteFace(g, pg => {
-    // patch = result - (rx, ry); result = M·(S·photo - mo) + mr, with S = scale(kx, ky)
-    pg.setTransform(cos, sin, -sin, cos, mr.x - rx - (cos * mo.x - sin * mo.y), mr.y - ry - (sin * mo.x + cos * mo.y));
-    pg.scale(kx, ky);
-    pg.drawImage(photo, 0, 0);
-  }, rx, ry, rw, rh);
-}
-
-// 2nd choice (no landmarks, e.g. some animal faces): look for the face by comparing pixels nearby.
-function lockByPixels(g, out, head, kx, ky) {
-  const b = { x: head.box.x * kx, y: head.box.y * ky, w: head.box.w * kx, h: head.box.h * ky };
-  const k = 40 / b.w, tw = 40, th = Math.max(8, Math.round(b.h * k));
-  const margin = Math.round(tw * 0.3);
-  const area = regionPixels(out, b.x - margin / k, b.y - margin / k, b.w + 2 * margin / k, b.h + 2 * margin / k, tw + 2 * margin, th + 2 * margin);
-  const A = GRAY(area), aw = tw + 2 * margin;
-  let best = { score: -1 };
-  for (const scale of [0.9, 1, 1.1]) {
-    const sw = Math.round(tw * scale), sh = Math.round(th * scale), sm = insideMask(sw, sh);
-    const T = GRAY(regionPixels(photo, head.box.x, head.box.y, head.box.w, head.box.h, sw, sh));
-    let n = 0, mt = 0; for (let i = 0; i < T.length; i++) if (sm[i]) { mt += T[i]; n++; }
-    mt /= n; let vt = 0; for (let i = 0; i < T.length; i++) if (sm[i]) vt += (T[i] - mt) ** 2;
-    const offX = Math.round((sw - tw) / 2), offY = Math.round((sh - th) / 2);
-    for (let dy = -margin; dy <= margin; dy++) for (let dx = -margin; dx <= margin; dx++) {
-      const ox = margin + dx - offX, oy = margin + dy - offY;
-      if (ox < 0 || oy < 0 || ox + sw > aw || oy + sh > th + 2 * margin) continue;
-      let ma = 0; for (let y = 0; y < sh; y++) for (let x = 0; x < sw; x++) if (sm[y * sw + x]) ma += A[(oy + y) * aw + ox + x];
-      ma /= n; let cov = 0, va = 0;
-      for (let y = 0; y < sh; y++) for (let x = 0; x < sw; x++) {
-        if (!sm[y * sw + x]) continue;
-        const av = A[(oy + y) * aw + ox + x] - ma, t = T[y * sw + x] - mt;
-        cov += av * t; va += av * av;
-      }
-      const score = cov / Math.sqrt(va * vt + 1e-6);
-      if (score > best.score) best = { score, dx, dy, scale, sw, sh, ox, oy, sm };
-    }
-  }
-  if (best.score < 0) return false;
-  // same colour as the original face (skin/fur), not e.g. a red tunic that happens to have similar shapes?
-  const T = regionPixels(photo, head.box.x, head.box.y, head.box.w, head.box.h, best.sw, best.sh);
-  const mT = [0, 0, 0], mA = [0, 0, 0]; let n = 0;
-  for (let y = 0; y < best.sh; y++) for (let x = 0; x < best.sw; x++) {
-    if (!best.sm[y * best.sw + x]) continue;
-    const ti = (y * best.sw + x) * 4, ai = ((best.oy + y) * aw + best.ox + x) * 4;
-    for (let c = 0; c < 3; c++) { mT[c] += T[ti + c]; mA[c] += area[ai + c]; }
-    n++;
-  }
-  const colourGap = Math.hypot(...[0, 1, 2].map(c => (mT[c] - mA[c]) / n));
-  if (location.hash === "#debug") console.debug(`face lock (pixels): score ${best.score.toFixed(2)} colour gap ${colourGap.toFixed(0)}`);
-  if (best.score < 0.5 || (best.score < 0.6 && colourGap > 70)) return false;
-  const pw = b.w * best.scale, ph = b.h * best.scale;
-  const px = b.x + best.dx / k - (pw - b.w) / 2, py = b.y + best.dy / k - (ph - b.h) / 2;
-  return pasteFace(g, pg => pg.drawImage(photo, head.box.x, head.box.y, head.box.w, head.box.h, 0, 0, Math.round(pw), Math.round(ph)), px, py, pw, ph);
-}
-
-async function faceLock(resultImg) {
+function faceLock(resultImg) {
   const W = resultImg.naturalWidth, H = resultImg.naturalHeight;
   const out = document.createElement("canvas"); out.width = W; out.height = H;
   const g = out.getContext("2d", { willReadFrequently: true });
   g.drawImage(resultImg, 0, 0);
-  const faces = heads.filter(h => h.kind === "face" && h.box && h.box.w * W / photo.width >= 24);
-  if (!faces.length) return { canvas: out, locked: 0 };
-  let resultHeads = [];
-  try { resultHeads = await findHeads(out); } catch (err) { console.warn("face lock: no detection on result", err); }
   const kx = W / photo.width, ky = H / photo.height;
   let locked = 0;
-  for (const head of faces) {
-    const how = lockByLandmarks(g, head, resultHeads, kx, ky) ? "landmarks" : lockByPixels(g, out, head, kx, ky) ? "pixels" : null;
-    if (how) locked++;
-    if (location.hash === "#debug") console.debug(`face lock: face at ${Math.round(head.box.x)},${Math.round(head.box.y)} -> ${how || "left alone"}`);
+
+  for (const head of heads) {
+    if (head.kind !== "face" || !head.box) continue;
+    const b = { x: head.box.x * kx, y: head.box.y * ky, w: head.box.w * kx, h: head.box.h * ky };
+    if (b.w < 24 || b.h < 24) continue;                      // too small to matter
+
+    // 1) find the face in the result: compare at a small size (template ~40 px wide)
+    const k = 40 / b.w, tw = 40, th = Math.max(8, Math.round(b.h * k));
+    const mask = insideMask(tw, th);
+    const margin = Math.round(tw * 0.3);
+    const area = regionPixels(out, b.x - margin / k, b.y - margin / k, b.w + 2 * margin / k, b.h + 2 * margin / k, tw + 2 * margin, th + 2 * margin);
+    const A = GRAY(area), aw = tw + 2 * margin;
+    let best = { score: -1 };
+    for (const scale of [0.9, 1, 1.1]) {
+      const sw = Math.round(tw * scale), sh = Math.round(th * scale), sm = insideMask(sw, sh);
+      const T = GRAY(regionPixels(photo, head.box.x, head.box.y, head.box.w, head.box.h, sw, sh));
+      let n = 0, mt = 0; for (let i = 0; i < T.length; i++) if (sm[i]) { mt += T[i]; n++; }
+      mt /= n; let vt = 0; for (let i = 0; i < T.length; i++) if (sm[i]) vt += (T[i] - mt) ** 2;
+      const offX = Math.round((sw - tw) / 2), offY = Math.round((sh - th) / 2);
+      for (let dy = -margin; dy <= margin; dy++) for (let dx = -margin; dx <= margin; dx++) {
+        const ox = margin + dx - offX, oy = margin + dy - offY;
+        if (ox < 0 || oy < 0 || ox + sw > aw || oy + sh > th + 2 * margin) continue;
+        let ma = 0; for (let y = 0; y < sh; y++) for (let x = 0; x < sw; x++) if (sm[y * sw + x]) ma += A[(oy + y) * aw + ox + x];
+        ma /= n; let cov = 0, va = 0;
+        for (let y = 0; y < sh; y++) for (let x = 0; x < sw; x++) {
+          if (!sm[y * sw + x]) continue;
+          const a = A[(oy + y) * aw + ox + x] - ma, t = T[y * sw + x] - mt;
+          cov += a * t; va += a * a;
+        }
+        const score = cov / Math.sqrt(va * vt + 1e-6);
+        if (score > best.score) best = { score, dx, dy, scale };
+      }
+    }
+    // Same colour as the original face (skin/fur), not e.g. a red tunic that happens to have similar shapes?
+    let colourGap = 0;
+    {
+      const sw = Math.round(tw * best.scale), sh = Math.round(th * best.scale), sm = insideMask(sw, sh);
+      const offX = Math.round((sw - tw) / 2), offY = Math.round((sh - th) / 2);
+      const ox = margin + best.dx - offX, oy = margin + best.dy - offY;
+      const T = regionPixels(photo, head.box.x, head.box.y, head.box.w, head.box.h, sw, sh);
+      const mT = [0, 0, 0], mA = [0, 0, 0]; let n = 0;
+      for (let y = 0; y < sh; y++) for (let x = 0; x < sw; x++) {
+        if (!sm[y * sw + x]) continue;
+        const ti = (y * sw + x) * 4, ai = ((oy + y) * aw + ox + x) * 4;
+        for (let c = 0; c < 3; c++) { mT[c] += T[ti + c]; mA[c] += area[ai + c]; }
+        n++;
+      }
+      colourGap = Math.hypot(...[0, 1, 2].map(c => (mT[c] - mA[c]) / n));
+    }
+    if (location.hash === "#debug") console.debug(`face lock: face ${Math.round(b.x)},${Math.round(b.y)} score ${best.score.toFixed(2)} colour gap ${colourGap.toFixed(0)}`);
+    // Strong shape match: trust it. Weaker match: only if the colour agrees too. Otherwise leave it alone.
+    if (best.score < 0.5 || (best.score < 0.6 && colourGap > 70)) continue;
+
+    // 2) paste the original face at the found spot, colour-matched, through a soft ellipse
+    const pw = Math.round(b.w * best.scale), ph = Math.round(b.h * best.scale);
+    const px = Math.round(b.x + best.dx / k - (pw - b.w) / 2), py = Math.round(b.y + best.dy / k - (ph - b.h) / 2);
+    const patch = document.createElement("canvas"); patch.width = pw; patch.height = ph;
+    const pg = patch.getContext("2d", { willReadFrequently: true });
+    pg.drawImage(photo, head.box.x, head.box.y, head.box.w, head.box.h, 0, 0, pw, ph);
+    const P = pg.getImageData(0, 0, pw, ph), R = g.getImageData(px, py, pw, ph).data, pm = insideMask(pw, ph);
+    for (let ch = 0; ch < 3; ch++) {                         // match mean and contrast per colour channel
+      let mp = 0, mr = 0, n = 0;
+      for (let i = 0; i < pm.length; i++) if (pm[i]) { mp += P.data[i * 4 + ch]; mr += R[i * 4 + ch]; n++; }
+      mp /= n; mr /= n; let vp = 0, vr = 0;
+      for (let i = 0; i < pm.length; i++) if (pm[i]) { vp += (P.data[i * 4 + ch] - mp) ** 2; vr += (R[i * 4 + ch] - mr) ** 2; }
+      const gain = Math.min(1.4, Math.max(0.7, Math.sqrt((vr + 1) / (vp + 1))));
+      for (let i = 0; i < pm.length; i++) P.data[i * 4 + ch] = (P.data[i * 4 + ch] - mp) * gain + mr;
+    }
+    pg.putImageData(P, 0, 0);
+    const soft = document.createElement("canvas"); soft.width = pw; soft.height = ph;
+    const sg = soft.getContext("2d"), feather = Math.max(2, pw * 0.08);
+    sg.filter = `blur(${feather}px)`; sg.fillStyle = "#fff";
+    sg.beginPath(); sg.ellipse(pw * .5, ph * .58, pw * .40 - feather, ph * .44 - feather, 0, 0, Math.PI * 2); sg.fill();
+    pg.globalCompositeOperation = "destination-in"; pg.drawImage(soft, 0, 0);
+    g.drawImage(patch, px, py);
+    locked++;
   }
   return { canvas: out, locked };
 }
@@ -472,12 +400,10 @@ async function watermark(src) {
   g.drawImage(img, 0, 0);
 
   const s = Math.min(W, H);
-  // Subtle mark, tucked into the corner: a small QR on its own little white tile and a soft white
-  // "made with Mutsify" next to it. The QR codes are 25x25 modules (the address is written in capitals,
-  // which packs tighter); whole pixels per module and at least 2 px each, the smallest that still scans.
-  const q = 25 * Math.max(2, Math.round(s * 0.04 / 25));
-  const pad = Math.round(q / 25 * 2), margin = Math.round(s * 0.012);   // pad = 2 modules of quiet zone
-  const size = Math.max(9, Math.round(q * 0.24));
+  // Subtle mark: a small QR on its own little white tile (whole pixels per module, at least 2 px each) and a soft white "Mutsify" next to it. No card behind it.
+  const q = 29 * Math.max(2, Math.round(s * 0.05 / 29));
+  const pad = Math.round(q / 29 * 3), margin = Math.round(s * 0.025);   // pad = 3 modules of quiet zone
+  const size = Math.max(11, Math.round(q * 0.3));
   const font = "Inter, -apple-system, system-ui, sans-serif";
   const x = margin, y = H - margin - q - pad * 2;
 
@@ -490,20 +416,11 @@ async function watermark(src) {
   g.drawImage(qr, x + pad, y + pad, q, q);
   g.imageSmoothingEnabled = true;
 
-  // "made with" in small spaced capitals, "Mutsify" in a handwritten script underneath: a little
-  // signature next to the QR code rather than a logo.
-  try { await document.fonts.load(`${Math.round(size * 1.7)}px Parisienne`); } catch {}
   g.save();
-  const tx = x + q + pad * 2 + size * 0.5, mid = y + (q + pad * 2) / 2;
+  g.font = `600 ${size}px ${font}`; g.textBaseline = "middle";
   g.shadowColor = "rgba(0,0,0,.45)"; g.shadowBlur = size * 0.4; g.shadowOffsetY = size * 0.05;
-  g.textBaseline = "alphabetic";
-  const small = Math.max(7, Math.round(size * 0.52));
-  g.font = `600 ${small}px ${font}`; g.fillStyle = "rgba(255,255,255,.7)";
-  try { g.letterSpacing = `${(small * 0.18).toFixed(1)}px`; } catch {}
-  g.fillText("MADE WITH", tx, mid - size * 0.42);
-  try { g.letterSpacing = "0px"; } catch {}
-  g.font = `${Math.round(size * 1.7)}px Parisienne, ${font}`; g.fillStyle = "rgba(255,255,255,.92)";
-  g.fillText("Mutsify", tx, mid + size * 0.95);
+  g.fillStyle = "rgba(255,255,255,.85)";
+  g.fillText("Mutsify", x + q + pad * 2 + size * 0.5, y + (q + pad * 2) / 2);
   g.restore();
 
   return new Promise(res => c.toBlob(res, "image/jpeg", 0.92));
@@ -511,8 +428,6 @@ async function watermark(src) {
 
 // ---------- saving: straight to the photo library on phones, a download elsewhere ----------
 let resultFile = null;
-// The line that goes along when the picture is shared (e.g. as the caption in WhatsApp).
-const SHARE_TEXT = ROBIN ? "Robin wishes you a very merry Christmas! 🎅" : KNIGHT ? "Ready to go!" : "Merry Christmas! 🎅";
 
 async function savePhoto() {
   if (!resultFile) return;
@@ -520,7 +435,7 @@ async function savePhoto() {
   if (phone && navigator.canShare?.({ files: [resultFile] })) {
     try {
       // Opens the share sheet: "Save Image" puts it in Photos (iPhone) / Gallery (Android).
-      await navigator.share({ files: [resultFile], title: "Mutsify", text: SHARE_TEXT });
+      await navigator.share({ files: [resultFile], title: "Mutsify" });
       return;
     } catch (err) {
       if (err.name === "AbortError") return;            // the visitor closed the sheet
@@ -746,7 +661,7 @@ async function makeFunny() {
     await detectReady;                     // lets the prompt name exactly who is in the photo
     const first = await api("/api/funhouse", {
       method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ image: photoAsDataURL(), subjects: subjectCounts(), extra, robin: ROBIN, mode: KNIGHT ? "knight" : "hat", aspect: photo.width / photo.height }),
+      body: JSON.stringify({ image: photoAsDataURL(), subjects: subjectCounts(), extra, robin: ROBIN, mode: KNIGHT ? "knight" : "hat" }),
     });
     remaining = first.remaining ?? null;
     let result = first.status === "succeeded" ? first.image : null, failures = 0;
@@ -760,13 +675,11 @@ async function makeFunny() {
       else if (r.status === "failed" || r.status === "canceled") throw new Error(r.error || "Generation failed");
       else if (Date.now() - t0 > 180000) throw new Error("This took too long");
     }
-    const { canvas: lockedCanvas, locked } = await faceLock(await loadImage(result));
+    const { canvas: lockedCanvas, locked } = faceLock(await loadImage(result));
     if (location.hash === "#debug") console.debug("face lock: restored", locked, "face(s)");
     const marked = await watermark(lockedCanvas.toDataURL("image/jpeg", 0.95));
     resultFile = new File([marked], `mutsify-${Date.now()}.jpg`, { type: "image/jpeg" });
     await new Promise((res, rej) => { const img = $("funnyImg"); img.onload = res; img.onerror = rej; img.src = URL.createObjectURL(marked); });
-    // the result can have a slightly different shape than the photo (nearest ratio the model offers)
-    $("funnyImg").style.aspectRatio = `${$("funnyImg").naturalWidth} / ${$("funnyImg").naturalHeight}`;
     ok = true;
   } catch (err) {
     console.error(err);

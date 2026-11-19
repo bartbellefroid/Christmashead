@@ -2,9 +2,7 @@
 //   REPLICATE_API_TOKEN=r8_... node server.mjs   then open http://localhost:8787
 import http from "node:http";
 import { readFile } from "node:fs/promises";
-// Read prompts.md first (writes lib/prompts-data.mjs), then load the function that uses it.
-await import("./scripts/build-prompts.mjs");
-const { default: handler } = await import("./netlify/functions/funhouse.mjs");
+import handler from "./netlify/functions/funhouse.mjs";
 
 const PORT = Number(process.env.PORT) || 8787;
 
@@ -25,7 +23,7 @@ http.createServer(async (req, res) => {
   }
   // static files: index.html, engine.js, detect-worker.js and assets/*
   const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".jpg": "image/jpeg", ".png": "image/png", ".webp": "image/webp" };
-  const name = ["/", "/robin", "/robin/", "/ridder", "/ridder/"].includes(url.pathname.toLowerCase()) ? "index.html" : decodeURIComponent(url.pathname.slice(1));
+  const name = ["/", "/robin", "/robin/", "/ridder", "/ridder/"].includes(url.pathname) ? "index.html" : decodeURIComponent(url.pathname.slice(1));
   const ext = name.slice(name.lastIndexOf("."));
   const allowed = /^(index\.html|engine\.js|detect-worker\.js|assets\/[\w.-]+)$/.test(name);
   if (allowed && TYPES[ext]) {
