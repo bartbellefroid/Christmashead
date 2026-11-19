@@ -340,36 +340,54 @@ function lockByLandmarks(g, head, resultHeads, kx, ky) {
     if (d < bestD) { bestD = d; match = r; }
   }
   if (!match || bestD > exp.w * 0.7) return false;
-  // similarity transform: original eyes -> result eyes
-  const [o1, o2] = kp, [r1, r2] = match.box.kp;
-  const vo = { x: o2.x - o1.x, y: o2.y - o1.y }, vr = { x: r2.x - r1.x, y: r2.y - r1.y };
-  const lo = Math.hypot(vo.x, vo.y), lr = Math.hypot(vr.x, vr.y);
-  if (lo < 3 || lr < 3) return false;
-  const sc = lr / lo, rot = Math.atan2(vr.y, vr.x) - Math.atan2(vo.y, vo.x);
-  const scaleRatio = sc / ((kx + ky) / 2), turn = Math.abs(((rot + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
-  if (scaleRatio < 0.6 || scaleRatio > 1.7 || turn > 0.45) return false;   // implausible: leave it
+  // Work in result coordinates: scale the original landmarks by (kx, ky) first, because the AI result
+  // can have a slightly different aspect ratio than the photo.
+  const N = Math.min(kp.length, match.box.kp.length, 4);     // eyes, nose, mouth
+  if (N < 2) return false;
+  const O = kp.slice(0, N).map(p => ({ x: p.x * kx, y: p.y * ky })), R = match.box.kp.slice(0, N);
+  const mean = pts => ({ x: pts.reduce((t, p) => t + p.x, 0) / N, y: pts.reduce((t, p) => t + p.y, 0) / N });
+  const mo = mean(O), mr = mean(R);
+  // least-squares similarity (shift, scale, rotation) over all landmarks: far steadier than the two
+  // eyes alone, which on a small face gave a face pasted too large, with the mouth too low.
+  let sa = 0, sb = 0, so = 0;
+  for (let i = 0; i < N; i++) {
+    const ox = O[i].x - mo.x, oy = O[i].y - mo.y, rx = R[i].x - mr.x, ry = R[i].y - mr.y;
+    sa += ox * rx + oy * ry; sb += ox * ry - oy * rx; so += ox * ox + oy * oy;
+  }
+  if (so < 9) return false;
+  const cos = sa / so, sin = sb / so, sc = Math.hypot(cos, sin), rot = Math.atan2(sin, cos);
+  const boxRatio = match.box.w / (head.box.w * kx);          // second opinion on the scale
+  if (location.hash === "#debug") console.debug(`face lock: scale ${sc.toFixed(2)} (box says ${boxRatio.toFixed(2)}), rotation ${(rot * 57.3).toFixed(0)}°, result face ${Math.round(match.box.w)}px`);
+  if (sc < 0.75 || sc > 1.35 || Math.abs(rot) > 0.45) return false;          // implausible: leave it
+  if (sc / boxRatio < 0.85 || sc / boxRatio > 1.18) return false;            // landmarks and box disagree
+  // how well do the landmarks line up after the transform? (in units of the face width)
+  let err = 0;
+  for (let i = 0; i < N; i++) {
+    const ox = O[i].x - mo.x, oy = O[i].y - mo.y;
+    err += Math.hypot(mr.x + cos * ox - sin * oy - R[i].x, mr.y + sin * ox + cos * oy - R[i].y);
+  }
+  if (err / N > match.box.w * 0.06) return false;
   // Same head pose? If the AI turned the head (e.g. profile -> facing the camera), the original face
   // won't fit the new head: leave it. Pose = where the nose sits relative to the eyes, and how wide
   // the eyes are apart compared with the face box.
-  const pose = (pts, box) => {
+  const pose = (pts, w) => {
     const [e1, e2, nose] = pts, ex = e2.x - e1.x, ey = e2.y - e1.y, d = Math.hypot(ex, ey) || 1;
     const mid = { x: (e1.x + e2.x) / 2, y: (e1.y + e2.y) / 2 };
-    return { yaw: nose ? ((nose.x - mid.x) * ex + (nose.y - mid.y) * ey) / (d * d) : 0, spread: d / box.w };
+    return { yaw: nose ? ((nose.x - mid.x) * ex + (nose.y - mid.y) * ey) / (d * d) : 0, spread: d / w };
   };
-  const po = pose(kp, head.box), pr = pose(match.box.kp, match.box);
+  const po = pose(O, head.box.w * kx), pr = pose(R, match.box.w);
   const spreadRatio = po.spread / pr.spread;
   if (location.hash === "#debug") console.debug(`face lock: yaw ${po.yaw.toFixed(2)} -> ${pr.yaw.toFixed(2)}, eye spread ratio ${spreadRatio.toFixed(2)}`);
   if (Math.abs(po.yaw - pr.yaw) > 0.3 || spreadRatio < 0.75 || spreadRatio > 1.33) return false;
-  const mo = { x: (o1.x + o2.x) / 2, y: (o1.y + o2.y) / 2 }, mr = { x: (r1.x + r2.x) / 2, y: (r1.y + r2.y) / 2 };
   // the region to replace: the original face box, carried over by the same transform
-  const rw = head.box.w * sc, rh = head.box.h * sc;
-  const cOrig = { x: head.box.x + head.box.w / 2, y: head.box.y + head.box.h / 2 };
-  const cos = Math.cos(rot) * sc, sin = Math.sin(rot) * sc;
-  const cx = mr.x + cos * (cOrig.x - mo.x) - sin * (cOrig.y - mo.y), cy = mr.y + sin * (cOrig.x - mo.x) + cos * (cOrig.y - mo.y);
+  const rw = head.box.w * kx * sc, rh = head.box.h * ky * sc;
+  const cO = { x: (head.box.x + head.box.w / 2) * kx - mo.x, y: (head.box.y + head.box.h / 2) * ky - mo.y };
+  const cx = mr.x + cos * cO.x - sin * cO.y, cy = mr.y + sin * cO.x + cos * cO.y;
   const rx = cx - rw / 2, ry = cy - rh / 2;
   return pasteFace(g, pg => {
-    // patch coords = result coords - (rx, ry); result = sc·R·(orig - mo) + mr
+    // patch = result - (rx, ry); result = M·(S·photo - mo) + mr, with S = scale(kx, ky)
     pg.setTransform(cos, sin, -sin, cos, mr.x - rx - (cos * mo.x - sin * mo.y), mr.y - ry - (sin * mo.x + cos * mo.y));
+    pg.scale(kx, ky);
     pg.drawImage(photo, 0, 0);
   }, rx, ry, rw, rh);
 }
@@ -728,7 +746,7 @@ async function makeFunny() {
     await detectReady;                     // lets the prompt name exactly who is in the photo
     const first = await api("/api/funhouse", {
       method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ image: photoAsDataURL(), subjects: subjectCounts(), extra, robin: ROBIN, mode: KNIGHT ? "knight" : "hat" }),
+      body: JSON.stringify({ image: photoAsDataURL(), subjects: subjectCounts(), extra, robin: ROBIN, mode: KNIGHT ? "knight" : "hat", aspect: photo.width / photo.height }),
     });
     remaining = first.remaining ?? null;
     let result = first.status === "succeeded" ? first.image : null, failures = 0;
@@ -747,6 +765,8 @@ async function makeFunny() {
     const marked = await watermark(lockedCanvas.toDataURL("image/jpeg", 0.95));
     resultFile = new File([marked], `mutsify-${Date.now()}.jpg`, { type: "image/jpeg" });
     await new Promise((res, rej) => { const img = $("funnyImg"); img.onload = res; img.onerror = rej; img.src = URL.createObjectURL(marked); });
+    // the result can have a slightly different shape than the photo (nearest ratio the model offers)
+    $("funnyImg").style.aspectRatio = `${$("funnyImg").naturalWidth} / ${$("funnyImg").naturalHeight}`;
     ok = true;
   } catch (err) {
     console.error(err);
