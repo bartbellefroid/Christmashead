@@ -4,7 +4,8 @@
   "type": "module",
   "description": "Drop a photo, get a funny Christmas version.",
   "scripts": {
-    "start": "node server.mjs"
+    "start": "node scripts/build-prompts.mjs && node server.mjs",
+    "prompts": "node scripts/build-prompts.mjs"
   },
   "dependencies": {
     "@netlify/blobs": "11.1.7"

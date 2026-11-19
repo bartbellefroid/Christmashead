@@ -87,6 +87,14 @@ app and the phone.
 Photos are only sent to Replicate to add the hats; Mutsify itself doesn't store them, and Replicate deletes them
 after 60 minutes. The page says so in one line under the colour dots.
 
+## Prompts
+
+All text that goes to the AI model lives in [`prompts.md`](prompts.md), one grey block per piece (shared
+sentences, Santa hat, the extras per colour dot, /robin, and costume and helmet per knight). Edit the text in
+the blocks, commit, deploy. `scripts/build-prompts.mjs` turns the file into `lib/prompts-data.mjs`; Netlify runs
+it on every deploy (`netlify.toml`) and `node server.mjs` runs it at start. If a block is missing or its heading
+was renamed, that script fails, so the deploy stops and the live site keeps the previous prompts.
+
 ## How it works
 
 - `index.html` — the page (upload, reindeer animation, toolbar, colour dots).

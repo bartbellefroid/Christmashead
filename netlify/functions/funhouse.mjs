@@ -13,19 +13,12 @@
 
 import { takeSlot, giveBack, clientIp, LIMIT, WINDOW_MS } from "../../lib/rate-limit.mjs";
 import { ROBIN_IMAGE } from "../../lib/robin-image.mjs";
+import P from "../../lib/prompts-data.mjs";
+import { fill } from "../../lib/prompts.mjs";
 
 const MODEL_URL = "https://api.replicate.com/v1/models/black-forest-labs/flux-2-klein-4b/predictions";
 const PREDICTION_URL = "https://api.replicate.com/v1/predictions/";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
-
-// Ways to wear the hat. All of them stay above the eyes, so the face itself is never covered or changed.
-// Variants that made the model draw a second tip or pom-pom (floppy bend, bell, extra long tail) are left out.
-const HAT_IDEAS = [
-  "tilted far to one side at a cheeky angle",
-  "comically tiny and perched on the very top of the head",
-  "worn backwards with the pom-pom dangling behind the head",
-  "pushed far back on the head, as if it is about to slide off the back",
-];
 
 function shuffle(a) {
   for (let i = a.length - 1; i > 0; i--) {
@@ -68,88 +61,46 @@ function normalise(subjects) {
 }
 
 // Optional extra per colour dot on the page. "hat" (the default) adds nothing beyond the hat.
-// One short sentence each, in the same plain style as the rest of the prompt.
-const EXTRAS = {
-  hat: null,
-  antlers: { text: "Each Santa hat also has a pair of small soft felt reindeer antlers in light brown sticking up from it." },
-  scarf: { text: "Everyone also wears a cosy knitted Christmas scarf with red and green stripes, loosely around the neck." },
-  cookie: { text: "Everyone also has a gingerbread man cookie with white icing: people hold it in a hand that is already in the picture, animals have it lying right in front of their paws." },
-  candycane: { text: "Everyone also has a red-and-white striped candy cane: people hold it in a hand that is already in the picture, animals have it lying right in front of their paws." },
-};
-
 function totalHeads(subjects) {
   return Object.values(subjects).reduce((sum, n) => sum + n, 0);
 }
 
-// /robin: Robin (the robot in the second input image) joins every photo, close by like family.
-const ROBIN_TEXT = [
-  "Robin, the small white toy robot from the second image, joins the picture as the one new figure: one robot, close to the others",
-  "like a member of the family posing with them, at a natural toy size, facing the camera, in the same lighting and focus.",
-  "Robin looks exactly as in the second image and wears a Santa hat too.",
-].join(" ");
-
-// /ridder: everyone becomes a medieval knight. The colour dots pick the costume and helmet.
-// All helmets are open-faced, so the face itself is never covered or changed.
-const KNIGHT_STYLES = {
-  plate: {
-    costume: "polished silver steel plate armour with a royal-blue tabard",
-    helmet: "a simple round shiny steel helmet that sits on top of the head like a cap, above the eyebrows, with a tall red feather plume on top",
-  },
-  guard: {
-    costume: "a chainmail shirt under a red heraldic tabard showing a golden lion",
-    helmet: "a round steel kettle-hat helmet with a wide brim, over a chainmail hood that frames the face",
-  },
-  forest: {
-    costume: "dark green enamelled armour with bronze edges and a green hooded cloak",
-    helmet: "a simple round bronze helmet that sits on top of the head like a cap, above the eyebrows, with a small crest of oak leaves",
-  },
-  king: {
-    costume: "ornate golden armour with engraved patterns and a red velvet cape with white fur trim",
-    helmet: "an open-faced golden helmet with a small royal crown on top",
-  },
-  tournament: {
-    costume: "steel armour under a jousting tabard with purple and white stripes",
-    helmet: "a simple round steel helmet that sits on top of the head like a cap, above the eyebrows, with large purple and white feather plumes",
-  },
-};
-
-// Prompt style, tuned by hand by the site owner: short sentences that only say what we DO want to see
-// (no "do not…", no talk about faces being changed: this model tends to draw whatever a prompt names),
-// addressed to "every face of a person or animal in this picture".
-const WHO = "For every face of a person or animal in this picture:";
-const POSE_LINE = "exactly as it is posed right now: same position in the frame, same lean and head tilt, same arms and hand gestures, same expression, and they keep holding whatever they are holding.";
-const SCENE_LINE = "The background, framing, lighting and photographic style stay exactly the same, and everything else in the picture stays as it is.";
+// ---------- prompts ----------
+// All prompt text lives in prompts.md (hand-editable); scripts/build-prompts.mjs turns it into
+// lib/prompts-data.mjs on every deploy. Here it is only assembled.
+const EXTRA_KEYS = ["antlers", "scarf", "cookie", "candycane"];
+const KNIGHT_KEYS = ["plate", "guard", "forest", "king", "tournament"];
+const shared = () => ({ who: P["shared.who"], pose: P["shared.pose"], scene: P["shared.scene"] });
 
 function buildKnightPrompt(raw, styleName) {
   const subjects = normalise(raw);
-  const style = KNIGHT_STYLES[styleName] || KNIGHT_STYLES.plate;
+  const style = KNIGHT_KEYS.includes(styleName) ? styleName : "plate";
   const hasAnimals = Object.keys(subjects).some(k => k !== "person");
-  return [
-    `${WHO} dress them in ${style.costume}, and put ${style.helmet} around the head.`,
-    "The helmet is open at the front.",
-    hasAnimals ? "Animals stay the same animals: small ones such as dogs and cats wear a little helmet and a matching little armoured coat over their back, large ones such as horses and cows wear a decorated cloth over their body." : "",
-    `The costume is fitted onto each body ${POSE_LINE}`,
-    SCENE_LINE,
-  ].filter(Boolean).join(" ");
+  return fill(P["knight.prompt"], {
+    ...shared(),
+    costume: P[`knight.${style}.costume`],
+    helmet: P[`knight.${style}.helmet`],
+    animals: hasAnimals ? P["knight.animals"] : "",
+  });
 }
 
 function buildPrompt(raw, extraName, robin = false) {
   const subjects = normalise(raw);
-  const extra = EXTRAS[extraName] || null;
   const who = describe(subjects);
   const n = totalHeads(subjects) + (robin ? 1 : 0);
   // One way of wearing it per head. Listing several ideas for a single head made the model merge
   // them into one hat (two tips, two pom-poms: a jester's hat).
-  const ideas = shuffle([...HAT_IDEAS]).slice(0, Math.min(Math.max(n, 1), 3));
-  return [
-    `${WHO} put one classic red Santa Christmas hat with white fur trim and one white pom-pom on top of the head, above the eyebrows.`,
-    who ? `That is exactly ${NUMBERS[n] || n} ${n === 1 ? "hat" : "hats"} in the picture${robin ? ", Robin's included" : ""}.` : "",
-    ideas.length === 1 ? `The hat is worn ${ideas[0]}.` : `Each hat is worn differently, for example: ${ideas.join("; ")}.`,
-    extra ? extra.text : "",
-    robin ? ROBIN_TEXT : "",
-    `${robin ? "Everyone already in the picture" : "Everyone"} stays ${POSE_LINE}`,
-    SCENE_LINE,
-  ].filter(Boolean).join(" ");
+  const all = P["hat.ideas"].split("\n").map(t => t.trim()).filter(Boolean);
+  const ideas = shuffle([...all]).slice(0, Math.min(Math.max(n, 1), 3));
+  const number = `${NUMBERS[n] || n} ${n === 1 ? "hat" : "hats"}`;
+  return fill(P["hat.prompt"], {
+    ...shared(),
+    count: who ? fill(P[robin ? "hat.count.robin" : "hat.count"], { number }) : "",
+    worn: ideas.length === 1 ? fill(P["hat.worn.one"], { idea: ideas[0] }) : fill(P["hat.worn.many"], { ideas: ideas.join("; ") }),
+    extra: EXTRA_KEYS.includes(extraName) ? P[`extra.${extraName}`] : "",
+    robin: robin ? P["robin.text"] : "",
+    everyone: P[robin ? "robin.everyone" : "hat.everyone"],
+  });
 }
 
 // The model's fixed aspect ratios; pick the one closest to the photo (width / height from the page).
@@ -219,8 +170,8 @@ async function start(req, context) {
       body: JSON.stringify({
         input: {
           prompt: knight
-            ? buildKnightPrompt(cleanSubjects, Object.hasOwn(KNIGHT_STYLES, extra) ? extra : "plate")
-            : buildPrompt(cleanSubjects, Object.hasOwn(EXTRAS, extra) ? extra : "hat", robin === true),
+            ? buildKnightPrompt(cleanSubjects, extra)
+            : buildPrompt(cleanSubjects, extra, robin === true),
           images: robin === true && !knight ? [image, ROBIN_IMAGE] : [image],
           // "match_input_image" returns only ~0.25 megapixel; a fixed ratio gives the full 1 megapixel.
           aspect_ratio: nearestRatio(aspect),
