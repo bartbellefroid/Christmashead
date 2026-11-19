@@ -152,6 +152,18 @@ function buildPrompt(raw, extraName, robin = false) {
   ].filter(Boolean).join(" ");
 }
 
+// The model's fixed aspect ratios; pick the one closest to the photo (width / height from the page).
+const RATIOS = ["1:1", "16:9", "9:16", "3:2", "2:3", "4:3", "3:4", "5:4", "4:5", "21:9", "9:21"];
+function nearestRatio(aspect) {
+  if (typeof aspect !== "number" || !(aspect > 0.2 && aspect < 5)) return "match_input_image";
+  let best = RATIOS[0], gap = Infinity;
+  for (const r of RATIOS) {
+    const [w, h] = r.split(":").map(Number), d = Math.abs(Math.log(aspect / (w / h)));
+    if (d < gap) { gap = d; best = r; }
+  }
+  return best;
+}
+
 const json = (body, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
@@ -180,7 +192,7 @@ async function finish(p, extra = {}) {
 }
 
 async function start(req, context) {
-  const { image, subjects, extra, robin, mode } = await req.json().catch(() => ({}));
+  const { image, subjects, extra, robin, mode, aspect } = await req.json().catch(() => ({}));
   const knight = mode === "knight";
   const cleanSubjects = subjects && typeof subjects === "object" ? subjects : null;
   if (typeof image !== "string" || !/^data:image\/(jpeg|png|webp);base64,/.test(image)) {
@@ -210,7 +222,9 @@ async function start(req, context) {
             ? buildKnightPrompt(cleanSubjects, Object.hasOwn(KNIGHT_STYLES, extra) ? extra : "plate")
             : buildPrompt(cleanSubjects, Object.hasOwn(EXTRAS, extra) ? extra : "hat", robin === true),
           images: robin === true && !knight ? [image, ROBIN_IMAGE] : [image],
-          aspect_ratio: "match_input_image",
+          // "match_input_image" returns only ~0.25 megapixel; a fixed ratio gives the full 1 megapixel.
+          aspect_ratio: nearestRatio(aspect),
+          output_megapixels: "1",
           output_format: "jpg",
           output_quality: 90,
         },
