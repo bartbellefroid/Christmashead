@@ -73,8 +73,14 @@ left alone rather than risk a double image.
 
 The result gets a small badge in the bottom-left corner: a QR code and the word "Mutsify", drawn onto the photo in
 the browser. The QR code leads back to the page the picture was made on: `assets/qr.png` (main page),
-`assets/qr-robin.png` (/robin) or `assets/qr-ridder.png` (/ridder). On phones, Save opens the share sheet so the
+`assets/qr-robin.png` (/robin) or `assets/qr-ridder.png` (/ridder). The codes write the address in capitals,
+which gives a smaller code (25×25 modules); the pages therefore also answer to /ROBIN and /RIDDER. On phones, Save opens the share sheet so the
 picture can go straight into Photos / the gallery; on computers it downloads as a JPEG.
+
+Next to the QR code it says "made with Mutsify" (small capitals plus the site's script font). When shared from a
+phone, a line of text goes along: "Merry Christmas! 🎅" (main page), "Ready to go!" (/ridder) or
+"Robin wishes you a very merry Christmas! 🎅" (/robin). Whether the receiving app shows that text is up to the
+app and the phone.
 
 ## Privacy
 

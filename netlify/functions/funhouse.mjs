@@ -73,8 +73,8 @@ const EXTRAS = {
   hat: null,
   antlers: { text: "Each Santa hat also has a pair of small soft felt reindeer antlers in light brown sticking up from it." },
   scarf: { text: "Everyone also wears a cosy knitted Christmas scarf with red and green stripes, loosely around the neck." },
-  cookie: { text: "Everyone also has a gingerbread man cookie with white icing: people hold it in a hand that is already in the picture, animals have it in their mouth or in front of their paws." },
-  candycane: { text: "Everyone also has a red-and-white striped candy cane: people hold it in a hand that is already in the picture, animals have it in their mouth or in front of their paws." },
+  cookie: { text: "Everyone also has a gingerbread man cookie with white icing: people hold it in a hand that is already in the picture, animals have it lying right in front of their paws." },
+  candycane: { text: "Everyone also has a red-and-white striped candy cane: people hold it in a hand that is already in the picture, animals have it lying right in front of their paws." },
 };
 
 function totalHeads(subjects) {
@@ -83,9 +83,9 @@ function totalHeads(subjects) {
 
 // /robin: Robin (the robot in the second input image) joins every photo, close by like family.
 const ROBIN_TEXT = [
-  "Also add Robin, the small white toy robot from the second image, into the picture: one robot, close to the others like a",
-  "member of the family posing with them, at a natural toy size, facing the camera, in the same lighting and focus.",
-  "Robin looks exactly as in the second image and also wears a Santa hat.",
+  "Robin, the small white toy robot from the second image, joins the picture as the one new figure: one robot, close to the others",
+  "like a member of the family posing with them, at a natural toy size, facing the camera, in the same lighting and focus.",
+  "Robin looks exactly as in the second image and wears a Santa hat too.",
 ].join(" ");
 
 // /ridder: everyone becomes a medieval knight. The colour dots pick the costume and helmet.
@@ -113,31 +113,23 @@ const KNIGHT_STYLES = {
   },
 };
 
-// Shared closing lines, in the wording the site owner tuned by hand: short, positive, and without any
-// talk about faces (this model tends to draw or alter whatever a prompt names).
+// Prompt style, tuned by hand by the site owner: short sentences that only say what we DO want to see
+// (no "do not…", no talk about faces being changed: this model tends to draw whatever a prompt names),
+// addressed to "every face of a person or animal in this picture".
+const WHO = "For every face of a person or animal in this picture:";
 const POSE_LINE = "exactly as it is posed right now: same position in the frame, same lean and head tilt, same arms and hand gestures, same expression, and they keep holding whatever they are holding.";
-const SCENE_LINE = "The background, framing, lighting and photographic style stay exactly the same.";
-
-function whoWord(subjects) {
-  const kinds = Object.keys(subjects);
-  const people = kinds.includes("person"), animals = kinds.some(k => k !== "person");
-  if (people && animals) return "the persons and animals";
-  if (animals) return "the animals";
-  if (people) return "the persons";
-  return "everyone";
-}
+const SCENE_LINE = "The background, framing, lighting and photographic style stay exactly the same, and everything else in the picture stays as it is.";
 
 function buildKnightPrompt(raw, styleName) {
   const subjects = normalise(raw);
   const style = KNIGHT_STYLES[styleName] || KNIGHT_STYLES.plate;
   const hasAnimals = Object.keys(subjects).some(k => k !== "person");
   return [
-    `Dress ${whoWord(subjects)} in this picture in ${style.costume}, and put ${style.helmet} around the head.`,
+    `${WHO} dress them in ${style.costume}, and put ${style.helmet} around the head.`,
     "The helmet is open at the front.",
     hasAnimals ? "Animals stay the same animals: small ones such as dogs and cats wear a little helmet and a matching little armoured coat over their back, large ones such as horses and cows wear a decorated cloth over their body." : "",
     `The costume is fitted onto each body ${POSE_LINE}`,
     SCENE_LINE,
-    "Do not add any people, animals, weapons or other objects.",
   ].filter(Boolean).join(" ");
 }
 
@@ -150,15 +142,13 @@ function buildPrompt(raw, extraName, robin = false) {
   // them into one hat (two tips, two pom-poms: a jester's hat).
   const ideas = shuffle([...HAT_IDEAS]).slice(0, Math.min(Math.max(n, 1), 3));
   return [
-    `Put a classic red Santa Christmas hat with white fur trim and one white pom-pom on the head of ${whoWord(subjects)} in this picture.`,
-    who ? `That is exactly ${NUMBERS[n] || n} ${n === 1 ? "hat" : "hats"}, one per head${robin ? ", Robin included" : ""}.` : "One hat per head.",
-    "Each hat sits on top of the head, above the eyebrows.",
+    `${WHO} put one classic red Santa Christmas hat with white fur trim and one white pom-pom on top of the head, above the eyebrows.`,
+    who ? `That is exactly ${NUMBERS[n] || n} ${n === 1 ? "hat" : "hats"} in the picture${robin ? ", Robin's included" : ""}.` : "",
     ideas.length === 1 ? `The hat is worn ${ideas[0]}.` : `Each hat is worn differently, for example: ${ideas.join("; ")}.`,
     extra ? extra.text : "",
     robin ? ROBIN_TEXT : "",
     `${robin ? "Everyone already in the picture" : "Everyone"} stays ${POSE_LINE}`,
     SCENE_LINE,
-    robin ? "Robin the robot is the only addition: do not add any people, children, animals or other objects." : "Do not add any people, animals or other objects.",
   ].filter(Boolean).join(" ");
 }
 
