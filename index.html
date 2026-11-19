@@ -470,11 +470,20 @@ async function watermark(src) {
   g.drawImage(qr, x + pad, y + pad, q, q);
   g.imageSmoothingEnabled = true;
 
+  // "made with" in small spaced capitals, "Mutsify" in a handwritten script underneath: a little
+  // signature next to the QR code rather than a logo.
+  try { await document.fonts.load(`${Math.round(size * 1.7)}px Parisienne`); } catch {}
   g.save();
-  g.font = `600 ${size}px ${font}`; g.textBaseline = "middle";
+  const tx = x + q + pad * 2 + size * 0.5, mid = y + (q + pad * 2) / 2;
   g.shadowColor = "rgba(0,0,0,.45)"; g.shadowBlur = size * 0.4; g.shadowOffsetY = size * 0.05;
-  g.fillStyle = "rgba(255,255,255,.85)";
-  g.fillText("Mutsify", x + q + pad * 2 + size * 0.5, y + (q + pad * 2) / 2);
+  g.textBaseline = "alphabetic";
+  const small = Math.max(7, Math.round(size * 0.52));
+  g.font = `600 ${small}px ${font}`; g.fillStyle = "rgba(255,255,255,.7)";
+  try { g.letterSpacing = `${(small * 0.18).toFixed(1)}px`; } catch {}
+  g.fillText("MADE WITH", tx, mid - size * 0.42);
+  try { g.letterSpacing = "0px"; } catch {}
+  g.font = `${Math.round(size * 1.7)}px Parisienne, ${font}`; g.fillStyle = "rgba(255,255,255,.92)";
+  g.fillText("Mutsify", tx, mid + size * 0.95);
   g.restore();
 
   return new Promise(res => c.toBlob(res, "image/jpeg", 0.92));
@@ -482,6 +491,8 @@ async function watermark(src) {
 
 // ---------- saving: straight to the photo library on phones, a download elsewhere ----------
 let resultFile = null;
+// The line that goes along when the picture is shared (e.g. as the caption in WhatsApp).
+const SHARE_TEXT = ROBIN ? "Robin wishes you a very merry Christmas! 🎅" : KNIGHT ? "Ready to go!" : "Merry Christmas! 🎅";
 
 async function savePhoto() {
   if (!resultFile) return;
@@ -489,7 +500,7 @@ async function savePhoto() {
   if (phone && navigator.canShare?.({ files: [resultFile] })) {
     try {
       // Opens the share sheet: "Save Image" puts it in Photos (iPhone) / Gallery (Android).
-      await navigator.share({ files: [resultFile], title: "Mutsify" });
+      await navigator.share({ files: [resultFile], title: "Mutsify", text: SHARE_TEXT });
       return;
     } catch (err) {
       if (err.name === "AbortError") return;            // the visitor closed the sheet
