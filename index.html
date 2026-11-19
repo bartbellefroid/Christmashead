@@ -214,8 +214,8 @@ function toast(msg) {
 // ---------- hidden pages (no link to them anywhere) ----------
 // /robin:  Robin the robot joins every photo.
 // /ridder: everyone becomes a medieval knight instead of getting a Santa hat.
-const ROBIN = /^\/robin\/?$/.test(location.pathname);
-const KNIGHT = /^\/ridder\/?$/.test(location.pathname);
+const ROBIN = /^\/robin\/?$/i.test(location.pathname);      // /i: the QR codes use capitals
+const KNIGHT = /^\/ridder\/?$/i.test(location.pathname);
 const PAGE_ICON = ROBIN ? "assets/robin-icon.jpg" : KNIGHT ? "assets/knight-icon.jpg" : null;
 if (PAGE_ICON) {
   // own icon on the page and as the tab / home-screen icon
@@ -400,10 +400,12 @@ async function watermark(src) {
   g.drawImage(img, 0, 0);
 
   const s = Math.min(W, H);
-  // Subtle mark: a small QR on its own little white tile (whole pixels per module, at least 2 px each) and a soft white "Mutsify" next to it. No card behind it.
-  const q = 29 * Math.max(2, Math.round(s * 0.05 / 29));
-  const pad = Math.round(q / 29 * 3), margin = Math.round(s * 0.025);   // pad = 3 modules of quiet zone
-  const size = Math.max(11, Math.round(q * 0.3));
+  // Subtle mark, tucked into the corner: a small QR on its own little white tile and a soft white
+  // "made with Mutsify" next to it. The QR codes are 25x25 modules (the address is written in capitals,
+  // which packs tighter); whole pixels per module and at least 2 px each, the smallest that still scans.
+  const q = 25 * Math.max(2, Math.round(s * 0.04 / 25));
+  const pad = Math.round(q / 25 * 2), margin = Math.round(s * 0.012);   // pad = 2 modules of quiet zone
+  const size = Math.max(9, Math.round(q * 0.24));
   const font = "Inter, -apple-system, system-ui, sans-serif";
   const x = margin, y = H - margin - q - pad * 2;
 
