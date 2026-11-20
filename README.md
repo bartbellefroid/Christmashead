@@ -53,6 +53,21 @@ no link to it. The colour dots pick the costume:
 
 The page sends `mode: "knight"`; the server builds the knight prompt (`KNIGHT_STYLES` in the function).
 
+## Knight faces: protected during generation (/ridder)
+
+On /ridder, when the detector found only people's faces (no animals, nobody seen from behind), the page does
+not ask the normal AI edit to leave the faces alone. It sends a mask with the photo (`knightMask` in `index.html`)
+and the function uses an inpainting model instead (`black-forest-labs/flux-fill-pro`, prompt
+`buildKnightFillPrompt`). In the mask each face, from forehead to chin, is black: the model keeps those pixels.
+Around it, the head (room for the helmet) and the shoulders and body are white: only those are redrawn. The
+rest of the photo (background, a glass in someone's hand) is black too and stays as it is. Because the faces are
+never touched, face lock (below) is skipped for these results. This model returns the size it is sent, so the
+page sends the photo at up to 1440 px on the long side here.
+
+Limits: the mask is a fixed shape around the face box, not a cut-out of the person, so clothing just outside it
+(e.g. the sides of a hoodie) can stay visible, and a hand or object right next to the head may be redrawn.
+Photos with animals or people seen from behind use the normal AI edit plus face lock.
+
 ## Face lock
 
 Image models sometimes subtly redraw faces. After the AI result comes back, the page puts the real faces back

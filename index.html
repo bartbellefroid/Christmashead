@@ -648,12 +648,44 @@ async function api(url, init) {
   return data;
 }
 
-function photoAsDataURL(maxSide = 1024) {
+const sentSize = (maxSide = 1024) => {
   const k = Math.min(1, maxSide / Math.max(photo.width, photo.height));
+  return { w: Math.round(photo.width * k), h: Math.round(photo.height * k) };
+};
+
+function photoAsDataURL({ w, h } = sentSize()) {
   const c = document.createElement("canvas");
-  c.width = Math.round(photo.width * k); c.height = Math.round(photo.height * k);
+  c.width = w; c.height = h;
   c.getContext("2d").drawImage(photo, 0, 0, c.width, c.height);
   return c.toDataURL("image/jpeg", 0.9);
+}
+
+// /ridder: protect the faces before the AI instead of pasting them back afterwards. The mask has the same
+// size as the photo we send: white = may be redrawn (hair, head room for the helmet, shoulders and body),
+// black = each face from forehead to chin, which the inpainting model keeps exactly. Sizes are relative to
+// the face box (tuned on a selfie; the box runs from the eyebrows to the chin). Only used when every head
+// found is a person's face: animals and people seen from behind still go through the normal AI edit.
+const useKnightMask = () => KNIGHT && heads.length > 0 && heads.every(hd => hd.kind === "face" && !hd.label && hd.box);
+
+function knightMask(w, h) {
+  const k = w / photo.width;
+  const c = document.createElement("canvas"); c.width = w; c.height = h;
+  const g = c.getContext("2d");
+  g.fillStyle = "#000"; g.fillRect(0, 0, w, h);
+  const faces = heads.map(hd => ({ x: hd.box.x * k, y: hd.box.y * k, s: hd.box.w * k, roll: hd.roll || 0 }));
+  g.fillStyle = "#fff";
+  for (const f of faces) {
+    const cx = f.x + f.s * .5;
+    g.beginPath(); g.ellipse(cx, f.y + f.s * .2, f.s * .75, f.s * 1.0, f.roll, 0, Math.PI * 2); g.fill();   // head + helmet
+    const top = f.y + f.s * .73, bottom = top + f.s * 3;                                                   // shoulders, body
+    g.beginPath(); g.moveTo(cx - f.s * .75, top); g.lineTo(cx + f.s * .75, top);
+    g.lineTo(cx + f.s * 1.75, bottom); g.lineTo(cx - f.s * 1.75, bottom); g.fill();
+  }
+  g.fillStyle = "#000";
+  for (const f of faces) {
+    g.beginPath(); g.ellipse(f.x + f.s * .5, f.y + f.s * .46, f.s * .38, f.s * .55, f.roll, 0, Math.PI * 2); g.fill();
+  }
+  return c.toDataURL("image/png");
 }
 
 function subjectCounts() {
@@ -672,9 +704,13 @@ async function makeFunny() {
   let ok = false, message = null, remaining = null;
   try {
     await detectReady;                     // lets the prompt name exactly who is in the photo
+    // /ridder with only people: the faces are protected by the AI itself. That model returns the size it is
+    // sent, so it gets a larger photo (the normal edit returns about 1 megapixel whatever it is sent).
+    const size = sentSize(useKnightMask() ? 1440 : 1024);
+    const mask = useKnightMask() ? knightMask(size.w, size.h) : null;
     const first = await api("/api/funhouse", {
       method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ image: photoAsDataURL(), subjects: subjectCounts(), extra, robin: ROBIN, mode: KNIGHT ? "knight" : "hat" }),
+      body: JSON.stringify({ image: photoAsDataURL(size), subjects: subjectCounts(), extra, robin: ROBIN, mode: KNIGHT ? "knight" : "hat", ...(mask && { mask }) }),
     });
     remaining = first.remaining ?? null;
     let result = first.status === "succeeded" ? first.image : null, failures = 0;
@@ -688,9 +724,14 @@ async function makeFunny() {
       else if (r.status === "failed" || r.status === "canceled") throw new Error(r.error || "Generation failed");
       else if (Date.now() - t0 > 180000) throw new Error("This took too long");
     }
-    const { canvas: lockedCanvas, locked } = faceLock(await loadImage(result));
-    if (location.hash === "#debug") console.debug("face lock: restored", locked, "face(s)");
-    const marked = await watermark(lockedCanvas.toDataURL("image/jpeg", 0.95));
+    // With a mask the faces were never touched, so there is nothing to put back.
+    let finished = result;
+    if (!mask) {
+      const { canvas: lockedCanvas, locked } = faceLock(await loadImage(result));
+      if (location.hash === "#debug") console.debug("face lock: restored", locked, "face(s)");
+      finished = lockedCanvas.toDataURL("image/jpeg", 0.95);
+    } else if (location.hash === "#debug") console.debug("knight mask: faces protected during generation");
+    const marked = await watermark(finished);
     resultFile = new File([marked], `mutsify-${Date.now()}.jpg`, { type: "image/jpeg" });
     await new Promise((res, rej) => { const img = $("funnyImg"); img.onload = res; img.onerror = rej; img.src = URL.createObjectURL(marked); });
     ok = true;

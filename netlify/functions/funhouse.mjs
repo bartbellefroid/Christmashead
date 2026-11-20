@@ -6,6 +6,8 @@
 //        robin: true — sent by the hidden /robin page: Robin the robot joins the photo
 //        mode: "knight" — sent by the hidden /ridder page: everyone becomes a medieval knight;
 //              extra then picks the costume: "plate" | "guard" | "forest" | "king" | "tournament"
+//        mask: "data:image/png;base64,..." — /ridder only, when the page found only people's faces: same size as
+//              image, black = faces (kept exactly), white = head and body (redrawn). Uses flux-fill-pro instead.
 //   GET  /api/funhouse?id=<prediction id>                        -> { status, image?, error? }
 //
 // Generation takes longer than many serverless time limits, so the browser starts the
@@ -15,6 +17,8 @@ import { takeSlot, giveBack, clientIp, LIMIT, WINDOW_MS } from "../../lib/rate-l
 import { ROBIN_IMAGE } from "../../lib/robin-image.mjs";
 
 const MODEL_URL = "https://api.replicate.com/v1/models/black-forest-labs/flux-2-klein-4b/predictions";
+// /ridder with a face mask from the page: inpainting. Black (the faces) is kept, white (hair, head, body) is redrawn.
+const FILL_URL = "https://api.replicate.com/v1/models/black-forest-labs/flux-fill-pro/predictions";
 const PREDICTION_URL = "https://api.replicate.com/v1/predictions/";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 
@@ -195,6 +199,22 @@ function buildPrompt(raw, extraName, robin = false) {
   ].filter(Boolean).join(" ");
 }
 
+// Prompt for the masked (inpainting) knight. The model only paints the white part of the mask, around
+// faces it cannot change, so this describes what to paint there rather than what to keep.
+function buildKnightFillPrompt(raw, styleName) {
+  const subjects = normalise(raw);
+  const style = KNIGHT_STYLES[styleName] || KNIGHT_STYLES.plate;
+  const n = totalHeads(subjects) || 1;
+  const many = n > 1;
+  return [
+    `Photo of ${many ? `${NUMBERS[n] || n} people` : "a person"} dressed as medieval ${many ? "knights" : "knight"} in full armour:`,
+    `${style.costume}, with steel pauldrons on the shoulders and a steel gorget around the neck.`,
+    `On ${many ? "each" : "the"} head: ${style.helmet}.`,
+    "The helmet encloses the whole head: metal cheek plates come down on both sides of the face along the jaw, no hair and no ears are visible.",
+    "Realistic photo, same lighting and camera as the rest of the image.",
+  ].join(" ");
+}
+
 const json = (body, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
@@ -223,8 +243,12 @@ async function finish(p, extra = {}) {
 }
 
 async function start(req, context) {
-  const { image, subjects, extra, robin, mode } = await req.json().catch(() => ({}));
+  const { image, subjects, extra, robin, mode, mask } = await req.json().catch(() => ({}));
   const knight = mode === "knight";
+  const fill = knight && typeof mask === "string";
+  if (fill && (!/^data:image\/png;base64,/.test(mask) || mask.length * 0.75 > MAX_IMAGE_BYTES)) {
+    return json({ error: "The mask must be a PNG data URL (max 4 MB)." }, 400);
+  }
   const cleanSubjects = subjects && typeof subjects === "object" ? subjects : null;
   if (typeof image !== "string" || !/^data:image\/(jpeg|png|webp);base64,/.test(image)) {
     return json({ error: "Send a JPEG, PNG or WebP image as a data URL." }, 400);
@@ -244,13 +268,21 @@ async function start(req, context) {
   }
   let p;
   try {
-    p = await replicate(MODEL_URL, {
+    const knightStyle = Object.hasOwn(KNIGHT_STYLES, extra) ? extra : "plate";
+    p = await replicate(fill ? FILL_URL : MODEL_URL, {
       method: "POST",
       headers: { prefer: "wait=5" }, // short wait: often done already, and stays under serverless time limits
       body: JSON.stringify({
-        input: {
+        input: fill ? {
+          prompt: buildKnightFillPrompt(cleanSubjects, knightStyle),
+          image,
+          mask,
+          guidance: 80,              // follow the costume prompt closely; this is the value the tests were done with
+          output_format: "jpg",
+          safety_tolerance: 2,
+        } : {
           prompt: knight
-            ? buildKnightPrompt(cleanSubjects, Object.hasOwn(KNIGHT_STYLES, extra) ? extra : "plate")
+            ? buildKnightPrompt(cleanSubjects, knightStyle)
             : buildPrompt(cleanSubjects, Object.hasOwn(EXTRAS, extra) ? extra : "hat", robin === true),
           images: robin === true && !knight ? [image, ROBIN_IMAGE] : [image],
           aspect_ratio: "match_input_image",
